@@ -1,185 +1,212 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { formatCurrency, formatDate, cn } from '@/lib/utils'
-import { TrendingUp, DollarSign, TrendingDown, BarChart2 } from 'lucide-react'
+import { formatMoneda } from '@/lib/utils'
+import { TrendingUp, TrendingDown, DollarSign, BarChart3, Download } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend } from 'recharts'
 
 export default function FinanzasPage() {
-  const [loading, setLoading] = useState(true)
-  const [stats, setStats] = useState({
-    totalIngresos: 0, totalGanancias: 0, totalCostos: 0, totalPerdidas: 0,
-    ventasMes: [] as any[], topPlataformas: [] as any[], reposicionesTotal: 0,
-  })
-  const [rangoMeses, setRangoMeses] = useState(3)
+  const [ventas, setVentas]       = useState<any[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [periodo, setPeriodo]     = useState<'7d'|'30d'|'90d'|'todo'>('30d')
 
-  useEffect(() => { fetchFinanzas() }, [rangoMeses])
-
-  async function fetchFinanzas() {
+  const load = useCallback(async () => {
     setLoading(true)
-    try {
-      const fechaDesde = new Date()
-      fechaDesde.setMonth(fechaDesde.getMonth() - rangoMeses)
+    const dias = periodo==='7d'?7:periodo==='30d'?30:periodo==='90d'?90:3650
+    const desde = new Date(Date.now()-dias*86400000).toISOString()
+    const { data } = await supabase
+      .from('ventas')
+      .select('*, plataformas(nombre,icono,color)')
+      .gte('created_at', periodo==='todo'?'2020-01-01':desde)
+      .order('created_at',{ ascending:true })
+    setVentas(data||[])
+    setLoading(false)
+  }, [periodo])
+  useEffect(()=>{ load() },[load])
 
-      const { data: ventas } = await supabase.from('ventas')
-        .select('precio_venta, costo_real, ganancia, created_at, plataforma_id, plataformas(nombre, icono, color)')
-        .gte('created_at', fechaDesde.toISOString())
-        .order('created_at', { ascending: true })
+  // Calcular stats
+  const totalIngresos  = ventas.reduce((s,v)=>s+(v.precio_venta||0),0)
+  const totalCostos    = ventas.reduce((s,v)=>s+(v.costo_real||0),0)
+  const totalGanancia  = totalIngresos - totalCostos
+  const margenPromedio = totalIngresos>0 ? Math.round((totalGanancia/totalIngresos)*100) : 0
+  const pagadas        = ventas.filter(v=>v.estado_pago==='pagado')
+  const pendientes     = ventas.filter(v=>v.estado_pago!=='pagado')
+  const totalPagado    = pagadas.reduce((s,v)=>s+(v.precio_venta||0),0)
+  const totalPorCobrar = pendientes.reduce((s,v)=>s+(v.precio_venta||0),0)
 
-      const { count: reposicionesTotal } = await supabase.from('reposiciones')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', fechaDesde.toISOString())
+  // Agrupar por plataforma
+  const porPlataforma = Object.values(
+    ventas.reduce((acc:any,v:any)=>{
+      const n=(v.plataformas as any)?.nombre||'Otras'
+      const c=(v.plataformas as any)?.color||'#8040e0'
+      if (!acc[n]) acc[n]={ nombre:n, color:c, ventas:0, ingresos:0, costos:0 }
+      acc[n].ventas++
+      acc[n].ingresos+=(v.precio_venta||0)
+      acc[n].costos+=(v.costo_real||0)
+      return acc
+    },{})
+  ) as any[]
 
-      // Totales
-      const totalIngresos = ventas?.reduce((s, v) => s + (v.precio_venta || 0), 0) || 0
-      const totalCostos = ventas?.reduce((s, v) => s + (v.costo_real || 0), 0) || 0
-      const totalGanancias = ventas?.reduce((s, v) => s + (v.ganancia || 0), 0) || 0
+  // Agrupar por semana (para gráfica de barras)
+  const porSemana = ventas.reduce((acc:any,v:any)=>{
+    const fecha=new Date(v.created_at)
+    const semana=`${fecha.getDate()}/${fecha.getMonth()+1}`
+    if (!acc[semana]) acc[semana]={ semana, ingresos:0, ganancia:0, ventas:0 }
+    acc[semana].ingresos+=(v.precio_venta||0)
+    acc[semana].ganancia+=(v.precio_venta||0)-(v.costo_real||0)
+    acc[semana].ventas++
+    return acc
+  },{})
+  const dataBarras = Object.values(porSemana).slice(-14) as any[]
 
-      // Agrupar por mes
-      const mesMap: Record<string, { mes: string, ingresos: number, ganancias: number, cantidad: number }> = {}
-      ventas?.forEach(v => {
-        const fecha = new Date(v.created_at)
-        const key = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`
-        const label = fecha.toLocaleDateString('es', { month: 'short', year: '2-digit' })
-        if (!mesMap[key]) mesMap[key] = { mes: label, ingresos: 0, ganancias: 0, cantidad: 0 }
-        mesMap[key].ingresos += v.precio_venta || 0
-        mesMap[key].ganancias += v.ganancia || 0
-        mesMap[key].cantidad++
-      })
-      const ventasMes = Object.values(mesMap)
+  // Pie data
+  const dataPie = porPlataforma.map(p=>({ name:p.nombre, value:p.ingresos, fill:p.color }))
 
-      // Top plataformas
-      const platMap: Record<string, { nombre: string, icono: string, color: string, total: number, cantidad: number }> = {}
-      ventas?.forEach(v => {
-        const plat = (v as any).plataformas
-        if (!plat) return
-        if (!platMap[v.plataforma_id]) platMap[v.plataforma_id] = { nombre: plat.nombre, icono: plat.icono, color: plat.color || '#0ea5e9', total: 0, cantidad: 0 }
-        platMap[v.plataforma_id].total += v.ganancia || 0
-        platMap[v.plataforma_id].cantidad++
-      })
-      const topPlataformas = Object.values(platMap).sort((a, b) => b.total - a.total).slice(0, 6)
-
-      setStats({ totalIngresos, totalGanancias, totalCostos, totalPerdidas: reposicionesTotal ? totalCostos * 0.1 : 0, ventasMes, topPlataformas, reposicionesTotal: reposicionesTotal || 0 })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const COLORS = ['#0ea5e9', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899']
-
-  if (loading) return <div className="flex items-center justify-center h-64"><div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" /></div>
+  const PINK_GRADIENT = ['#e060c0','#c044a0','#a030c0','#8040e0','#6050e0','#4060e0','#3b82f6','#2563eb','#10b981','#f59e0b']
 
   return (
     <div className="space-y-6">
-      <div className="section-header">
+      <div className="page-header">
         <div>
-          <h1 className="section-title flex items-center gap-2"><TrendingUp size={22} /> Finanzas</h1>
-          <p className="section-subtitle">Control financiero y rentabilidad</p>
+          <h1 className="section-title flex items-center gap-2">
+            <TrendingUp className="w-5 h-5" style={{color:'var(--brand)'}}/> Finanzas
+          </h1>
+          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>Resumen financiero de ventas</p>
         </div>
-        <select className="select w-36" value={rangoMeses} onChange={e => setRangoMeses(parseInt(e.target.value))}>
-          <option value={1}>Último mes</option>
-          <option value={3}>3 meses</option>
-          <option value={6}>6 meses</option>
-          <option value={12}>12 meses</option>
-        </select>
+        <div className="flex gap-2">
+          {(['7d','30d','90d','todo'] as const).map(p=>(
+            <button key={p} onClick={()=>setPeriodo(p)}
+              className={`text-xs px-3 py-1.5 rounded-lg font-semibold transition-all ${periodo===p?'text-white':'btn-secondary'}`}
+              style={periodo===p?{background:'linear-gradient(135deg,#c044a0,#8040e0)'}:{}}>
+              {p==='todo'?'Todo':p}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 stagger-children">
         {[
-          { label: 'Ingresos Totales', value: formatCurrency(stats.totalIngresos), icon: DollarSign, color: 'sky', sub: 'Total cobrado' },
-          { label: 'Ganancias Netas', value: formatCurrency(stats.totalGanancias), icon: TrendingUp, color: 'emerald', sub: 'Ingresos - Costos' },
-          { label: 'Costo Total', value: formatCurrency(stats.totalCostos), icon: TrendingDown, color: 'orange', sub: 'Lo que pagaste' },
-          { label: 'Reposiciones', value: stats.reposicionesTotal, icon: BarChart2, color: 'red', sub: 'Garantías usadas' },
-        ].map((k, i) => (
-          <div key={i} className="card">
-            <div className="flex items-center gap-3 mb-2">
-              <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center',
-                k.color === 'sky' ? 'bg-sky-500/10' : k.color === 'emerald' ? 'bg-emerald-500/10' : k.color === 'orange' ? 'bg-orange-500/10' : 'bg-red-500/10'
-              )}>
-                <k.icon size={18} className={cn(k.color === 'sky' ? 'text-sky-400' : k.color === 'emerald' ? 'text-emerald-400' : k.color === 'orange' ? 'text-orange-400' : 'text-red-400')} />
-              </div>
-              <div className="text-xs text-slate-500">{k.label}</div>
+          { l:'Ingresos totales', v:formatMoneda(totalIngresos),  icon:'💰', color:'#10b981', sub:`${ventas.length} ventas` },
+          { l:'Ganancia neta',    v:formatMoneda(totalGanancia),  icon:'📈', color:'#c044a0', sub:`${margenPromedio}% margen` },
+          { l:'Cobrado',          v:formatMoneda(totalPagado),    icon:'✅', color:'#3b82f6', sub:`${pagadas.length} ventas pagadas` },
+          { l:'Por cobrar',       v:formatMoneda(totalPorCobrar), icon:'⏳', color:'#f59e0b', sub:`${pendientes.length} pendientes` },
+        ].map(s=>(
+          <div key={s.l} className="card p-5">
+            <div className="flex items-center gap-3 mb-3">
+              <span className="text-2xl">{s.icon}</span>
+              <p className="text-xs font-bold uppercase tracking-wider" style={{color:'var(--text-3)'}}>{s.l}</p>
             </div>
-            <div className={cn('text-2xl font-bold', k.color === 'sky' ? 'text-sky-400' : k.color === 'emerald' ? 'text-emerald-400' : k.color === 'orange' ? 'text-orange-400' : 'text-red-400')}>{k.value}</div>
-            <div className="text-xs text-slate-600 mt-0.5">{k.sub}</div>
+            <p className="text-xl font-bold" style={{color:s.color}}>{s.v}</p>
+            <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>{s.sub}</p>
           </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
-        {/* Ingresos por mes */}
-        <div className="card">
-          <h2 className="font-semibold text-slate-200 mb-4">Ingresos y Ganancias por Mes</h2>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={stats.ventasMes}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#1e2d42" />
-              <XAxis dataKey="mes" tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 11, fill: '#64748b' }} axisLine={false} tickLine={false} tickFormatter={v => `$${v}`} />
-              <Tooltip
-                contentStyle={{ background: '#131c2e', border: '1px solid #1e2d42', borderRadius: '8px', fontSize: '12px' }}
-                formatter={(v: any, name: string) => [formatCurrency(v), name === 'ingresos' ? 'Ingresos' : 'Ganancias']}
-              />
-              <Bar dataKey="ingresos" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="ganancias" fill="#10b981" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+      {/* Gráficas */}
+      {!loading && ventas.length > 0 && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Barras: ingresos por fecha */}
+          <div className="lg:col-span-2 card p-5">
+            <h3 className="font-bold text-sm mb-4" style={{color:'var(--text)'}}>📊 Ingresos y ganancia por fecha</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={dataBarras} margin={{ top:0, right:0, left:-20, bottom:0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)"/>
+                <XAxis dataKey="semana" tick={{ fontSize:11, fill:'var(--text-3)' }}/>
+                <YAxis tick={{ fontSize:11, fill:'var(--text-3)' }}/>
+                <Tooltip
+                  contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, fontSize:12 }}
+                  formatter={(v:any)=>formatMoneda(v)}/>
+                <Bar dataKey="ingresos" fill="#c044a0" radius={[6,6,0,0]} name="Ingresos"/>
+                <Bar dataKey="ganancia" fill="#3b82f6" radius={[6,6,0,0]} name="Ganancia"/>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
 
-        {/* Top plataformas */}
-        <div className="card">
-          <h2 className="font-semibold text-slate-200 mb-4">Ganancias por Plataforma</h2>
-          {stats.topPlataformas.length === 0 ? (
-            <div className="text-center py-12 text-slate-500">Sin datos</div>
-          ) : (
-            <div className="space-y-3">
-              {stats.topPlataformas.map((p, i) => {
-                const maxTotal = stats.topPlataformas[0].total
-                const pct = maxTotal > 0 ? (p.total / maxTotal) * 100 : 0
-                return (
-                  <div key={i}>
-                    <div className="flex items-center justify-between mb-1">
-                      <div className="flex items-center gap-2 text-sm text-slate-300">
-                        <span>{p.icono}</span>{p.nombre}
-                        <span className="text-xs text-slate-500">({p.cantidad} ventas)</span>
-                      </div>
-                      <span className="text-sm font-bold text-emerald-400">{formatCurrency(p.total)}</span>
-                    </div>
-                    <div className="h-1.5 bg-[#1e2d42] rounded-full overflow-hidden">
-                      <div className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-500" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
+          {/* Pie: por plataforma */}
+          <div className="card p-5">
+            <h3 className="font-bold text-sm mb-4" style={{color:'var(--text)'}}>🎬 Por plataforma</h3>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={dataPie} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                  {dataPie.map((entry,i)=>(
+                    <Cell key={i} fill={entry.fill||PINK_GRADIENT[i%PINK_GRADIENT.length]}/>
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v:any)=>formatMoneda(v)} contentStyle={{ background:'var(--surface)', border:'1px solid var(--border)', borderRadius:12, fontSize:12 }}/>
+                <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize:11 }}/>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Margen de ganancia */}
-      <div className="card">
-        <h2 className="font-semibold text-slate-200 mb-3">Resumen Financiero</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1e2d42] text-center">
-            <div className="text-2xl font-bold text-sky-400">{formatCurrency(stats.totalIngresos)}</div>
-            <div className="text-xs text-slate-500 mt-1">Total Cobrado</div>
+      {/* Tabla por plataforma */}
+      {porPlataforma.length > 0 && (
+        <div className="card overflow-hidden">
+          <div className="p-5 border-b" style={{borderColor:'var(--border)'}}>
+            <h3 className="font-bold text-sm" style={{color:'var(--text)'}}>Desglose por plataforma</h3>
           </div>
-          <div className="p-4 rounded-xl bg-[#0f172a] border border-[#1e2d42] text-center">
-            <div className="text-2xl font-bold text-orange-400">{formatCurrency(stats.totalCostos)}</div>
-            <div className="text-xs text-slate-500 mt-1">Total Gastado</div>
-          </div>
-          <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
-            <div className="text-2xl font-bold text-emerald-400">{formatCurrency(stats.totalGanancias)}</div>
-            <div className="text-xs text-emerald-500 mt-1">Ganancia Neta</div>
-            {stats.totalIngresos > 0 && (
-              <div className="text-xs text-emerald-600 mt-0.5">
-                {Math.round((stats.totalGanancias / stats.totalIngresos) * 100)}% de margen
-              </div>
-            )}
+          <div className="table-container border-0">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Plataforma</th>
+                  <th>Ventas</th>
+                  <th>Ingresos</th>
+                  <th>Costos</th>
+                  <th>Ganancia</th>
+                  <th>Margen</th>
+                </tr>
+              </thead>
+              <tbody>
+                {porPlataforma.sort((a:any,b:any)=>b.ingresos-a.ingresos).map((p:any)=>{
+                  const gan=p.ingresos-p.costos
+                  const mar=p.ingresos>0?Math.round((gan/p.ingresos)*100):0
+                  return (
+                    <tr key={p.nombre}>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-8 rounded-full flex-shrink-0" style={{background:p.color}}/>
+                          <span className="font-semibold">{p.nombre}</span>
+                        </div>
+                      </td>
+                      <td className="font-semibold text-center">{p.ventas}</td>
+                      <td className="font-bold text-emerald-600">{formatMoneda(p.ingresos)}</td>
+                      <td className="text-red-500">{formatMoneda(p.costos)}</td>
+                      <td className="font-bold" style={{color:'var(--brand)'}}>{formatMoneda(gan)}</td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1 h-1.5 rounded-full" style={{background:'var(--border)'}}>
+                            <div className="h-1.5 rounded-full" style={{width:`${Math.min(100,mar)}%`,background:p.color}}/>
+                          </div>
+                          <span className="text-xs font-bold w-8 text-right" style={{color:'var(--text-2)'}}>{mar}%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                <tr className="font-bold" style={{background:'var(--surface-2)'}}>
+                  <td>TOTAL</td>
+                  <td className="text-center">{ventas.length}</td>
+                  <td className="text-emerald-600">{formatMoneda(totalIngresos)}</td>
+                  <td className="text-red-500">{formatMoneda(totalCostos)}</td>
+                  <td style={{color:'var(--brand)'}}>{formatMoneda(totalGanancia)}</td>
+                  <td className="font-bold">{margenPromedio}%</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
-      </div>
+      )}
+
+      {!loading && ventas.length===0 && (
+        <div className="card p-12 text-center">
+          <BarChart3 size={40} className="mx-auto mb-3 opacity-20" style={{color:'var(--brand)'}}/>
+          <p className="font-semibold" style={{color:'var(--text-2)'}}>Sin datos para el período seleccionado</p>
+        </div>
+      )}
     </div>
   )
 }

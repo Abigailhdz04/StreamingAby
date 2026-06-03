@@ -1,176 +1,156 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { cn } from '@/lib/utils'
-import { Monitor, Plus, Edit, Trash2, X } from 'lucide-react'
+import { Tv, Plus, X, CheckCircle, Edit2, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
-const defaultForm = { nombre: '', icono: '📺', color: '#0ea5e9', max_perfiles: 5, descripcion: '', activa: true }
+const ICONOS = ['🎬','🏰','🎭','⭐','📦','🎵','▶️','🍥','🍎','📡','🎮','🎲','📺','🌟','💫']
+const COLORES = ['#E50914','#1E90FF','#5822A4','#0064FF','#00A8E0','#1DB954','#FF0000','#F47521','#555555','#FF6B00','#c044a0','#8040e0','#10b981','#f59e0b','#3b82f6']
 
 export default function PlataformasPage() {
-  const [plataformas, setPlataformas] = useState<any[]>([])
-  const [stats, setStats] = useState<Record<string, any>>({})
-  const [loading, setLoading] = useState(true)
-  const [showModal, setShowModal] = useState(false)
-  const [editing, setEditing] = useState<any>(null)
-  const [form, setForm] = useState(defaultForm)
-  const [saving, setSaving] = useState(false)
+  const [plataformas, setPlats] = useState<any[]>([])
+  const [loading, setLoading]   = useState(true)
+  const [modalOpen, setMOpen]   = useState(false)
+  const [editando, setEdit]     = useState<any|null>(null)
 
-  async function fetchPlataformas() {
+  const [fp, setFp] = useState({
+    nombre:'', icono:'🎬', color:'#c044a0',
+    max_perfiles:5, precio_referencia:'0', notas:'', activo:true
+  })
+
+  const load = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase.from('plataformas').select('*').order('nombre')
-    setPlataformas(data || [])
-    if (data) {
-      const obj: Record<string, any> = {}
-      await Promise.all(data.map(async (p: any) => {
-        const [{ count: cuentas }, { count: ventas }] = await Promise.all([
-          supabase.from('cuentas').select('*', { count: 'exact', head: true }).eq('plataforma_id', p.id),
-          supabase.from('ventas').select('*', { count: 'exact', head: true }).eq('plataforma_id', p.id).eq('estado', 'activa'),
-        ])
-        obj[p.id] = { cuentas: cuentas || 0, ventas: ventas || 0 }
-      }))
-      setStats(obj)
-    }
+    setPlats(data||[])
     setLoading(false)
-  }
+  }, [])
+  useEffect(()=>{ load() },[load])
 
-  useEffect(() => { fetchPlataformas() }, [])
-
-  function openNew() { setEditing(null); setForm(defaultForm); setShowModal(true) }
-  function openEdit(p: any) {
-    setEditing(p)
-    setForm({ nombre: p.nombre, icono: p.icono || '📺', color: p.color || '#0ea5e9', max_perfiles: p.max_perfiles, descripcion: p.descripcion || '', activa: p.activa })
-    setShowModal(true)
-  }
-
-  async function save() {
-    if (!form.nombre.trim()) return toast.error('El nombre es requerido')
-    setSaving(true)
+  async function guardar() {
+    if (!fp.nombre.trim()) return toast.error('Nombre requerido')
+    const tid = toast.loading(editando?'Actualizando...':'Guardando...')
     try {
-      if (editing) {
-        await supabase.from('plataformas').update({ ...form, updated_at: new Date().toISOString() }).eq('id', editing.id)
-        toast.success('Plataforma actualizada')
+      const payload = { nombre:fp.nombre, icono:fp.icono, color:fp.color, max_perfiles:Number(fp.max_perfiles)||5, precio_referencia:Number(fp.precio_referencia)||0, notas:fp.notas||null, activo:fp.activo }
+      if (editando) {
+        await supabase.from('plataformas').update(payload).eq('id',editando.id)
+        toast.success('Actualizada ✅',{ id:tid })
       } else {
-        await supabase.from('plataformas').insert({ ...form })
-        toast.success('Plataforma creada')
+        await supabase.from('plataformas').insert(payload)
+        toast.success('Plataforma creada ✅',{ id:tid })
       }
-      setShowModal(false)
-      fetchPlataformas()
-    } catch (e: any) {
-      toast.error(e.message)
-    } finally {
-      setSaving(false)
-    }
+      setMOpen(false); setEdit(null); reset(); load()
+    } catch(e:any){ toast.error(e.message||'Error',{ id:tid }) }
   }
 
-  async function deletePlataforma(p: any) {
-    if (!confirm(`¿Eliminar ${p.nombre}?`)) return
-    const { error } = await supabase.from('plataformas').delete().eq('id', p.id)
-    if (error) return toast.error('No se puede eliminar (tiene cuentas/ventas asociadas)')
-    toast.success('Plataforma eliminada')
-    fetchPlataformas()
+  async function eliminar(id: string) {
+    if (!confirm('¿Desactivar esta plataforma?')) return
+    await supabase.from('plataformas').update({ activo:false }).eq('id',id)
+    toast.success('Desactivada'); load()
   }
 
-  const ICONOS = ['🎬', '✨', '🎭', '📦', '🎵', '▶️', '⭐', '⚔️', '🍎', '📡', '🎮', '📺', '🎶', '🏆', '🌟']
+  function abrir(p?: any) {
+    if (p) { setEdit(p); setFp({ nombre:p.nombre, icono:p.icono||'🎬', color:p.color||'#c044a0', max_perfiles:p.max_perfiles, precio_referencia:String(p.precio_referencia||0), notas:p.notas||'', activo:p.activo }) }
+    else { reset(); setEdit(null) }
+    setMOpen(true)
+  }
+  function reset() { setFp({ nombre:'', icono:'🎬', color:'#c044a0', max_perfiles:5, precio_referencia:'0', notas:'', activo:true }) }
 
   return (
     <div className="space-y-6">
-      <div className="section-header">
+      <div className="page-header">
         <div>
-          <h1 className="section-title flex items-center gap-2"><Monitor size={22} /> Plataformas</h1>
-          <p className="section-subtitle">{plataformas.length} plataformas configuradas</p>
+          <h1 className="section-title flex items-center gap-2">
+            <Tv className="w-5 h-5" style={{color:'var(--brand)'}}/> Plataformas
+          </h1>
+          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>{plataformas.filter(p=>p.activo).length} activas</p>
         </div>
-        <button onClick={openNew} className="btn-primary"><Plus size={16} /> Nueva Plataforma</button>
+        <button className="btn-primary" onClick={()=>abrir()}><Plus size={15}/> Nueva plataforma</button>
       </div>
 
-      <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {loading ? (
-          <div className="col-span-full text-center py-12 text-slate-500">Cargando...</div>
-        ) : plataformas.map(p => {
-          const s = stats[p.id] || { cuentas: 0, ventas: 0 }
-          return (
-            <div key={p.id} className="card-hover group">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl" style={{ backgroundColor: p.color + '20', border: `1px solid ${p.color}40` }}>
-                    {p.icono}
-                  </div>
-                  <div>
-                    <div className="font-semibold text-slate-200">{p.nombre}</div>
-                    <div className="text-xs text-slate-500">{p.max_perfiles} perfiles máx.</div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100">
-                  <button onClick={() => openEdit(p)} className="btn-ghost btn-sm btn-icon"><Edit size={13} /></button>
-                  <button onClick={() => deletePlataforma(p)} className="btn-ghost btn-sm btn-icon text-red-400"><Trash2 size={13} /></button>
-                </div>
+      {loading ? (
+        <div className="text-center py-16" style={{color:'var(--text-3)'}}>Cargando...</div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 stagger-children">
+          {plataformas.map(p=>(
+            <div key={p.id} className={`card-hover p-5 text-center space-y-3 ${!p.activo?'opacity-50':''}`}>
+              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-sm"
+                style={{backgroundColor:`${p.color}25`}}>
+                {p.icono}
               </div>
-              {p.descripcion && <p className="text-xs text-slate-500 mb-3">{p.descripcion}</p>}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="text-center p-2 rounded-lg bg-[#0f172a]">
-                  <div className="text-sm font-bold text-sky-400">{s.cuentas}</div>
-                  <div className="text-[10px] text-slate-500">Cuentas</div>
-                </div>
-                <div className="text-center p-2 rounded-lg bg-[#0f172a]">
-                  <div className="text-sm font-bold text-emerald-400">{s.ventas}</div>
-                  <div className="text-[10px] text-slate-500">Ventas activas</div>
-                </div>
+              <div>
+                <h3 className="font-bold" style={{color:'var(--text)'}}>{p.nombre}</h3>
+                <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>
+                  {p.max_perfiles} perfiles máx.
+                </p>
+                <div className="w-3 h-3 rounded-full mx-auto mt-2" style={{background:p.color}}/>
               </div>
-              {!p.activa && <div className="mt-2 text-xs text-red-400 text-center">Inactiva</div>}
+              {!p.activo&&<span className="badge bg-gray-100 text-gray-500 text-xs">Inactiva</span>}
+              <div className="flex justify-center gap-2 pt-1">
+                <button className="btn-ghost p-1.5" onClick={()=>abrir(p)}><Edit2 size={13}/></button>
+                <button className="btn-ghost p-1.5 text-red-500" onClick={()=>eliminar(p.id)}><Trash2 size={13}/></button>
+              </div>
             </div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
+      )}
 
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+      {modalOpen && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setMOpen(false)}>
+          <div className="modal-content animate-slide-up max-w-md">
             <div className="modal-header">
-              <h2 className="font-semibold text-slate-200">{editing ? 'Editar Plataforma' : 'Nueva Plataforma'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <h2 className="text-lg font-bold" style={{color:'var(--text)'}}>{editando?'Editar plataforma':'Nueva plataforma'}</h2>
+              <button className="btn-ghost p-1.5" onClick={()=>setMOpen(false)}><X size={18}/></button>
             </div>
-            <div className="modal-body">
+            <div className="modal-body space-y-4">
               <div>
                 <label className="label">Nombre *</label>
-                <input className="input" placeholder="Netflix, Disney+..." value={form.nombre} onChange={e => setForm(f => ({ ...f, nombre: e.target.value }))} />
+                <input className="input" placeholder="Netflix, Disney+..." value={fp.nombre} onChange={e=>setFp(f=>({...f,nombre:e.target.value}))}/>
               </div>
               <div>
                 <label className="label">Ícono</label>
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {ICONOS.map(ic => (
-                    <button key={ic} onClick={() => setForm(f => ({ ...f, icono: ic }))}
-                      className={cn('w-9 h-9 rounded-lg text-xl flex items-center justify-center transition-all', form.icono === ic ? 'bg-sky-500/30 border-2 border-sky-500' : 'bg-[#1e2d42] hover:bg-[#243447]')}>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {ICONOS.map(ic=>(
+                    <button key={ic} onClick={()=>setFp(f=>({...f,icono:ic}))}
+                      className={`w-9 h-9 rounded-xl text-lg flex items-center justify-center border-2 transition-all ${fp.icono===ic?'border-pink-400 scale-110':'border-transparent'}`}
+                      style={{background:fp.icono===ic?'var(--brand-light)':'var(--surface-2)'}}>
                       {ic}
                     </button>
                   ))}
                 </div>
               </div>
+              <div>
+                <label className="label">Color</label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {COLORES.map(c=>(
+                    <button key={c} onClick={()=>setFp(f=>({...f,color:c}))}
+                      className={`w-8 h-8 rounded-lg border-2 transition-all ${fp.color===c?'scale-110 border-white shadow-lg':'border-transparent'}`}
+                      style={{background:c}}/>
+                  ))}
+                </div>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="label">Color</label>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} className="w-10 h-10 rounded-lg border-0 bg-transparent cursor-pointer" />
-                    <input className="input flex-1" value={form.color} onChange={e => setForm(f => ({ ...f, color: e.target.value }))} />
-                  </div>
+                  <label className="label">Máx. perfiles</label>
+                  <input className="input" type="number" min={1} max={20} value={fp.max_perfiles} onChange={e=>setFp(f=>({...f,max_perfiles:Number(e.target.value)}))}/>
                 </div>
                 <div>
-                  <label className="label">Máx. perfiles</label>
-                  <input className="input" type="number" min="1" max="10" value={form.max_perfiles} onChange={e => setForm(f => ({ ...f, max_perfiles: parseInt(e.target.value) || 1 }))} />
+                  <label className="label">Precio referencia</label>
+                  <input className="input" type="number" step="0.01" value={fp.precio_referencia} onChange={e=>setFp(f=>({...f,precio_referencia:e.target.value}))}/>
                 </div>
               </div>
               <div>
-                <label className="label">Descripción</label>
-                <input className="input" value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
+                <label className="label">Notas</label>
+                <textarea className="input" rows={2} placeholder="Reglas especiales, observaciones..." value={fp.notas} onChange={e=>setFp(f=>({...f,notas:e.target.value}))}/>
               </div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" checked={form.activa} onChange={e => setForm(f => ({ ...f, activa: e.target.checked }))} className="accent-sky-500" />
-                <span className="text-sm text-slate-300">Plataforma activa</span>
-              </label>
+              <div className="flex items-center gap-3 p-3 rounded-xl" style={{background:'var(--surface-2)',border:'1px solid var(--border)'}}>
+                <input type="checkbox" id="pact" className="w-4 h-4" checked={fp.activo} onChange={e=>setFp(f=>({...f,activo:e.target.checked}))}/>
+                <label htmlFor="pact" className="text-sm cursor-pointer font-semibold" style={{color:'var(--text-2)'}}>Plataforma activa</label>
+              </div>
             </div>
             <div className="modal-footer">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={save} disabled={saving} className="btn-primary">{saving ? 'Guardando...' : editing ? 'Actualizar' : 'Crear'}</button>
+              <button className="btn-secondary" onClick={()=>setMOpen(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={guardar}><CheckCircle size={15}/>{editando?'Actualizar':'Guardar'}</button>
             </div>
           </div>
         </div>

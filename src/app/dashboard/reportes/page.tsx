@@ -1,458 +1,304 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
-import { formatDate, formatDateTime, getEstadoBadgeColor, cn, diasRestantes } from '@/lib/utils'
-import { AlertTriangle, Plus, Search, Eye, CheckCircle, X, Clock, RefreshCw } from 'lucide-react'
+import { formatFecha, getBadgeClass, getColorEstado } from '@/lib/utils'
+import { Flag, Plus, X, CheckCircle, Search, Eye, Trash2, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { differenceInDays, parseISO } from 'date-fns'
 
 const TIPOS_REPORTE = [
-  'contrasena_cambiada', 'pantalla_llena', 'perfil_eliminado', 'correo_cambiado',
-  'pin_cambiado', 'bloqueo', 'region_incorrecta', 'cuenta_caida', 'error_plataforma',
-  'usuario_expulsado', 'otro'
+  'contraseña cambiada','pantalla llena','perfil eliminado','correo cambiado',
+  'PIN cambiado','bloqueo de cuenta','región incorrecta','cuenta caída',
+  'error de plataforma','usuario expulsado','cuenta suspendida',
+  'fallo de pago','calidad baja','otro'
 ]
 
 export default function ReportesPage() {
-  const [reportes, setReportes] = useState<any[]>([])
-  const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
-  const [filtroEstado, setFiltroEstado] = useState('')
-  const [showModal, setShowModal] = useState(false)
-  const [showReposicion, setShowReposicion] = useState(false)
-  const [selected, setSelected] = useState<any>(null)
-  const [saving, setSaving] = useState(false)
+  const [reportes, setReportes]   = useState<any[]>([])
+  const [ventas, setVentas]       = useState<any[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [busqueda, setBusq]       = useState('')
+  const [filtroEst, setFEst]      = useState('')
+  const [modalOpen, setMOpen]     = useState(false)
+  const [verDetalle, setVerD]     = useState<any|null>(null)
 
-  // Catálogos
-  const [ventas, setVentas] = useState<any[]>([])
-  const [cuentasDisp, setCuentasDisp] = useState<any[]>([])
-  const [perfilesDisp, setPerfilesDisp] = useState<any[]>([])
-
-  const [form, setForm] = useState({
-    venta_id: '', tipo: 'cuenta_caida', descripcion: '', evidencia: '',
-    fecha_falla: new Date().toISOString().split('T')[0],
+  const [fr, setFr] = useState({
+    venta_id:'', tipo:'cuenta caída', descripcion:'', evidencia_url:'', dias_pausados:0
   })
 
-  const [reposForm, setReposForm] = useState({
-    cuenta_nueva_id: '', perfil_nuevo_id: '', nombre_perfil_nuevo: '', notas: ''
-  })
-
-  const fetchReportes = useCallback(async () => {
+  const load = useCallback(async () => {
     setLoading(true)
-    try {
-      let q = supabase.from('reportes')
-        .select('*, clientes(nombre, whatsapp), cuentas(correo), perfiles(nombre_perfil), plataformas(nombre, icono), proveedores(nombre), ventas(fecha_inicio, fecha_vencimiento, duracion_dias, dias_restantes)')
-        .order('created_at', { ascending: false })
-      if (filtroEstado) q = q.eq('estado', filtroEstado)
-      const { data } = await q
-      let filtered = data || []
-      if (search) filtered = filtered.filter((r: any) => r.clientes?.nombre?.toLowerCase().includes(search.toLowerCase()))
-      setReportes(filtered)
-    } finally {
-      setLoading(false)
-    }
-  }, [search, filtroEstado])
-
-  useEffect(() => { fetchReportes() }, [fetchReportes])
-
-  useEffect(() => {
-    const fetchVentas = async () => {
-      const { data } = await supabase.from('ventas')
-        .select('*, clientes(nombre), plataformas(nombre, icono), cuentas(correo), perfiles(nombre_perfil)')
-        .eq('estado', 'activa')
-        .order('created_at', { ascending: false })
-      setVentas(data || [])
-    }
-    fetchVentas()
+    const [{ data:r },{ data:v }] = await Promise.all([
+      supabase.from('reportes')
+        .select('*, clientes(nombre,whatsapp), cuentas(correo), ventas(fecha_inicio,fecha_vencimiento,dias_contratados,plataformas(nombre,icono))')
+        .order('created_at',{ ascending:false }),
+      supabase.from('ventas')
+        .select('id, clientes(nombre), plataformas(nombre,icono), cuentas(correo)')
+        .in('estado',['activa','renovada'])
+        .order('created_at',{ ascending:false }),
+    ])
+    setReportes(r||[])
+    setVentas(v||[])
+    setLoading(false)
   }, [])
+  useEffect(()=>{ load() },[load])
 
   async function crearReporte() {
-    if (!form.venta_id) return toast.error('Selecciona una venta')
-    if (!form.tipo) return toast.error('Selecciona el tipo de reporte')
-    setSaving(true)
+    if (!fr.venta_id||!fr.tipo) return toast.error('Selecciona venta y tipo de reporte')
+    const venta = ventas.find(v=>v.id===fr.venta_id)
+    if (!venta) return
+    const tid = toast.loading('Creando reporte...')
     try {
-      const venta = ventas.find(v => v.id === form.venta_id)
-      const fechaFalla = new Date(form.fecha_falla + 'T12:00:00')
-      const fechaInicio = parseISO(venta.fecha_inicio)
-      const diasConsumidos = Math.max(0, differenceInDays(fechaFalla, fechaInicio))
-      const diasRestantesVal = Math.max(0, (venta.duracion_dias || 30) - diasConsumidos)
-
-      // Crear reporte
-      const { data: reporte, error } = await supabase.from('reportes').insert({
-        venta_id: form.venta_id,
-        cliente_id: venta.cliente_id,
-        cuenta_id: venta.cuenta_id,
-        perfil_id: venta.perfil_id,
-        plataforma_id: venta.plataforma_id,
-        proveedor_id: null,
-        tipo: form.tipo,
-        descripcion: form.descripcion,
-        evidencia: form.evidencia,
-        fecha_falla: fechaFalla.toISOString(),
-        fecha_reporte: new Date().toISOString(),
-        dias_consumidos_al_fallo: diasConsumidos,
-        dias_restantes_al_fallo: diasRestantesVal,
-        estado: 'pendiente',
-      }).select().single()
-
+      const { error } = await supabase.from('reportes').insert({
+        venta_id:fr.venta_id, cliente_id:(venta as any).cliente_id,
+        cuenta_id:(venta as any).cuenta_id, tipo:fr.tipo,
+        descripcion:fr.descripcion||null, evidencia_url:fr.evidencia_url||null,
+        estado:'pendiente', dias_pausados:Number(fr.dias_pausados)||0
+      })
       if (error) throw error
-
-      // Actualizar venta a en_garantia y pausar
-      await supabase.from('ventas').update({
-        estado: 'en_garantia',
-        fecha_pausa: new Date().toISOString(),
-        dias_consumidos: diasConsumidos,
-        dias_restantes: diasRestantesVal,
-      }).eq('id', form.venta_id)
-
-      // Marcar perfil como reportado
-      if (venta.perfil_id) {
-        await supabase.from('perfiles').update({ estado: 'reportado' }).eq('id', venta.perfil_id)
-      }
-
+      // Marcar venta en garantía
+      await supabase.from('ventas').update({ estado:'en_garantia' }).eq('id',fr.venta_id)
       await supabase.from('movimientos').insert({
-        tipo: 'reporte_creado',
-        descripcion: `Reporte creado: ${form.tipo} — ${venta.clientes?.nombre} (${diasRestantesVal} días restantes)`,
-        entidad: 'reportes', entidad_id: reporte.id,
-        cliente_id: venta.cliente_id, venta_id: form.venta_id,
-        metadata: { tipo: form.tipo, diasRestantes: diasRestantesVal, diasConsumidos }
+        tipo:'reporte_creado',
+        descripcion:`Reporte: ${fr.tipo} en venta ${fr.venta_id}`,
+        entidad_tipo:'reporte', cliente_id:(venta as any).cliente_id
       })
-
-      toast.success(`Reporte creado. ${diasRestantesVal} días restantes para reposición.`)
-      setShowModal(false)
-      setForm({ venta_id: '', tipo: 'cuenta_caida', descripcion: '', evidencia: '', fecha_falla: new Date().toISOString().split('T')[0] })
-      fetchReportes()
-    } catch (e: any) {
-      toast.error(e.message || 'Error al crear reporte')
-    } finally {
-      setSaving(false)
-    }
+      toast.success('Reporte creado ✅',{ id:tid })
+      setMOpen(false)
+      setFr({ venta_id:'',tipo:'cuenta caída',descripcion:'',evidencia_url:'',dias_pausados:0 })
+      load()
+    } catch(e:any){ toast.error(e.message||'Error',{ id:tid }) }
   }
 
-  async function abrirReposicion(reporte: any) {
-    setSelected(reporte)
-    setReposForm({ cuenta_nueva_id: '', perfil_nuevo_id: '', nombre_perfil_nuevo: '', notas: '' })
-    // Cargar cuentas disponibles de la misma plataforma
-    const { data } = await supabase.from('cuentas')
-      .select('*, plataformas(nombre)')
-      .eq('plataforma_id', reporte.plataformas?.id || '')
-      .in('estado', ['disponible', 'parcial'])
-    // If no plataforma_id on report, load all
-    if (!data || data.length === 0) {
-      const { data: all } = await supabase.from('cuentas').select('*, plataformas(nombre)').in('estado', ['disponible', 'parcial'])
-      setCuentasDisp(all || [])
-    } else {
-      setCuentasDisp(data)
-    }
-    setShowReposicion(true)
-  }
-
-  async function ejecutarReposicion() {
-    if (!reposForm.cuenta_nueva_id || !reposForm.perfil_nuevo_id) return toast.error('Selecciona cuenta y perfil para la reposición')
-    setSaving(true)
+  async function cambiarEstado(id: string, nuevoEstado: string) {
+    const tid = toast.loading('Actualizando...')
     try {
-      const venta = selected.ventas
-      const diasRestantesVal = selected.dias_restantes_al_fallo
-      const ahora = new Date()
-
-      // Calcular días pausados
-      const fechaPausa = venta?.fecha_pausa ? parseISO(venta.fecha_pausa) : ahora
-      const diasPausados = Math.max(0, differenceInDays(ahora, fechaPausa))
-
-      // Nueva fecha vencimiento = hoy + días restantes
-      const nuevaFechaVencimiento = new Date()
-      nuevaFechaVencimiento.setDate(nuevaFechaVencimiento.getDate() + diasRestantesVal)
-
-      // Liberar perfil anterior
-      if (selected.perfil_id) {
-        await supabase.from('perfiles').update({ estado: 'libre', cliente_id: null }).eq('id', selected.perfil_id)
-      }
-
-      // Ocupar nuevo perfil
-      await supabase.from('perfiles').update({
-        estado: 'ocupado',
-        cliente_id: selected.cliente_id,
-        nombre_perfil: reposForm.nombre_perfil_nuevo || undefined,
-      }).eq('id', reposForm.perfil_nuevo_id)
-
-      // Actualizar venta
-      await supabase.from('ventas').update({
-        estado: 'repuesta',
-        cuenta_id: reposForm.cuenta_nueva_id,
-        perfil_id: reposForm.perfil_nuevo_id,
-        nombre_perfil_asignado: reposForm.nombre_perfil_nuevo || undefined,
-        fecha_vencimiento: nuevaFechaVencimiento.toISOString(),
-        fecha_pausa: null,
-        total_dias_pausados: diasPausados,
-      }).eq('id', selected.venta_id)
-
-      // Crear reposición
-      const { data: repos } = await supabase.from('reposiciones').insert({
-        reporte_id: selected.id,
-        venta_original_id: selected.venta_id,
-        cliente_id: selected.cliente_id,
-        cuenta_anterior_id: selected.cuenta_id,
-        cuenta_nueva_id: reposForm.cuenta_nueva_id,
-        perfil_anterior_id: selected.perfil_id,
-        perfil_nuevo_id: reposForm.perfil_nuevo_id,
-        dias_restantes: diasRestantesVal,
-        dias_pausados: diasPausados,
-        fecha_falla: selected.fecha_falla,
-        fecha_reposicion: ahora.toISOString(),
-        nueva_fecha_vencimiento: nuevaFechaVencimiento.toISOString(),
-        notas: reposForm.notas,
-      }).select().single()
-
-      // Marcar reporte como solucionado
-      await supabase.from('reportes').update({ estado: 'solucionado', fecha_solucion: ahora.toISOString() }).eq('id', selected.id)
-
-      await supabase.from('movimientos').insert({
-        tipo: 'reposicion_realizada',
-        descripcion: `Reposición: ${selected.clientes?.nombre} — ${diasRestantesVal} días restantes. Nueva fecha: ${nuevaFechaVencimiento.toLocaleDateString('es')}`,
-        entidad: 'reposiciones', entidad_id: repos?.id,
-        cliente_id: selected.cliente_id, venta_id: selected.venta_id,
-        metadata: { diasRestantes: diasRestantesVal, diasPausados, nuevaFecha: nuevaFechaVencimiento.toISOString() }
-      })
-
-      toast.success(`✅ Reposición exitosa. Nueva fecha de vencimiento: ${nuevaFechaVencimiento.toLocaleDateString('es')}`)
-      setShowReposicion(false)
-      fetchReportes()
-    } catch (e: any) {
-      toast.error(e.message || 'Error en reposición')
-    } finally {
-      setSaving(false)
-    }
+      const upd: any = { estado:nuevoEstado }
+      if (nuevoEstado==='solucionado') upd.fecha_solucion=new Date().toISOString()
+      await supabase.from('reportes').update(upd).eq('id',id)
+      toast.success(`Estado: ${nuevoEstado} ✅`,{ id:tid })
+      load()
+    } catch(e:any){ toast.error(e.message||'Error',{ id:tid }) }
   }
 
-  async function cancelarReporte(reporte: any) {
-    if (!confirm('¿Cancelar este reporte?')) return
-    await supabase.from('reportes').update({ estado: 'cancelado' }).eq('id', reporte.id)
-    // Reactivar venta
-    if (reporte.venta_id) {
-      await supabase.from('ventas').update({ estado: 'activa', fecha_pausa: null }).eq('id', reporte.venta_id)
-      if (reporte.perfil_id) await supabase.from('perfiles').update({ estado: 'ocupado' }).eq('id', reporte.perfil_id)
-    }
-    toast.success('Reporte cancelado')
-    fetchReportes()
+  async function eliminarReporte(id: string) {
+    if (!confirm('¿Eliminar este reporte?')) return
+    await supabase.from('reportes').delete().eq('id',id)
+    toast.success('Reporte eliminado')
+    load()
+  }
+
+  const reportesFilt = reportes.filter(r=>{
+    const b=busqueda.toLowerCase()
+    const mb=!busqueda||(r.clientes as any)?.nombre?.toLowerCase().includes(b)||r.tipo?.toLowerCase().includes(b)
+    const me=!filtroEst||r.estado===filtroEst
+    return mb&&me
+  })
+
+  const stats = {
+    pendientes:  reportes.filter(r=>r.estado==='pendiente').length,
+    solucionados:reportes.filter(r=>r.estado==='solucionado').length,
+    cancelados:  reportes.filter(r=>r.estado==='cancelado').length,
+  }
+
+  const COLOR_EST: Record<string,string> = {
+    pendiente: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
+    solucionado:'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
+    cancelado:  'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
   }
 
   return (
     <div className="space-y-6">
-      <div className="section-header">
+      <div className="page-header">
         <div>
-          <h1 className="section-title flex items-center gap-2"><AlertTriangle size={22} /> Reportes</h1>
-          <p className="section-subtitle">{reportes.filter(r => r.estado === 'pendiente').length} pendientes</p>
+          <h1 className="section-title flex items-center gap-2">
+            <Flag className="w-5 h-5" style={{color:'var(--brand)'}}/> Reportes
+          </h1>
+          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>
+            {stats.pendientes} pendientes · {stats.solucionados} solucionados
+          </p>
         </div>
-        <button onClick={() => setShowModal(true)} className="btn-primary"><Plus size={16} /> Nuevo Reporte</button>
+        <button className="btn-primary" onClick={()=>setMOpen(true)}>
+          <Plus size={15}/> Nuevo reporte
+        </button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* Mini stats */}
+      <div className="grid grid-cols-3 gap-4">
         {[
-          { label: 'Pendientes', count: reportes.filter(r => r.estado === 'pendiente').length, color: 'text-yellow-400', icon: Clock },
-          { label: 'Solucionados', count: reportes.filter(r => r.estado === 'solucionado').length, color: 'text-emerald-400', icon: CheckCircle },
-          { label: 'Cancelados', count: reportes.filter(r => r.estado === 'cancelado').length, color: 'text-slate-400', icon: X },
-        ].map(s => (
-          <div key={s.label} className="card flex items-center gap-3">
-            <s.icon size={20} className={s.color} />
-            <div>
-              <div className={cn('text-xl font-bold', s.color)}>{s.count}</div>
-              <div className="text-xs text-slate-500">{s.label}</div>
-            </div>
+          { l:'Pendientes',  v:stats.pendientes,   c:'#f59e0b' },
+          { l:'Solucionados',v:stats.solucionados, c:'#10b981' },
+          { l:'Cancelados',  v:stats.cancelados,   c:'#6b7280' },
+        ].map(s=>(
+          <div key={s.l} className="card p-4 text-center">
+            <p className="text-2xl font-bold" style={{color:s.c}}>{s.v}</p>
+            <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>{s.l}</p>
           </div>
         ))}
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input className="input pl-9" placeholder="Buscar por cliente..." value={search} onChange={e => setSearch(e.target.value)} />
+      {stats.pendientes>0&&(
+        <div className="alert-warning">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0"/>
+          <span>Hay <strong>{stats.pendientes} reporte{stats.pendientes>1?'s':''} pendiente{stats.pendientes>1?'s':''}</strong> que requieren atención.</span>
         </div>
-        <select className="select w-36" value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
+      )}
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{color:'var(--text-3)'}}/>
+          <input className="input pl-9" placeholder="Buscar cliente, tipo..." value={busqueda} onChange={e=>setBusq(e.target.value)}/>
+        </div>
+        <select className="select w-full sm:w-36" value={filtroEst} onChange={e=>setFEst(e.target.value)}>
           <option value="">Todos</option>
-          <option value="pendiente">Pendiente</option>
-          <option value="solucionado">Solucionado</option>
-          <option value="cancelado">Cancelado</option>
+          <option value="pendiente">⏳ Pendiente</option>
+          <option value="solucionado">✅ Solucionado</option>
+          <option value="cancelado">❌ Cancelado</option>
         </select>
       </div>
 
       {/* Table */}
-      <div className="table-wrapper">
+      <div className="table-container">
         <table className="table">
           <thead>
             <tr>
               <th>Cliente</th>
-              <th>Plataforma</th>
               <th>Tipo</th>
-              <th>Días restantes</th>
-              <th>Fecha reporte</th>
+              <th>Cuenta</th>
+              <th>Descripción</th>
+              <th>Días pausados</th>
+              <th>Fecha</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">Cargando...</td></tr>
-            ) : reportes.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">No hay reportes</td></tr>
-            ) : reportes.map(r => (
-              <tr key={r.id}>
-                <td>
-                  <div className="font-medium text-slate-200">{r.clientes?.nombre || '—'}</div>
-                  {r.clientes?.whatsapp && <a href={`https://wa.me/${r.clientes.whatsapp}`} target="_blank" className="text-xs text-emerald-400">WhatsApp</a>}
-                </td>
-                <td>
-                  <div className="flex items-center gap-2">
-                    <span>{r.plataformas?.icono}</span>
-                    <span className="text-xs text-slate-400">{r.plataformas?.nombre}</span>
-                  </div>
-                </td>
-                <td>
-                  <span className="text-xs text-slate-300 bg-[#1e2d42] px-2 py-1 rounded">{r.tipo.replace(/_/g, ' ')}</span>
-                </td>
-                <td>
-                  <span className="text-yellow-400 font-bold">{r.dias_restantes_al_fallo} días</span>
-                </td>
-                <td className="text-xs text-slate-400">{formatDate(r.fecha_reporte)}</td>
-                <td>
-                  <span className={cn('badge text-[10px]', getEstadoBadgeColor(r.estado))}>{r.estado}</span>
-                </td>
-                <td>
-                  <div className="flex items-center gap-1">
-                    {r.estado === 'pendiente' && (
-                      <>
-                        <button onClick={() => abrirReposicion(r)} className="btn-success btn-sm" title="Hacer reposición">
-                          <RefreshCw size={13} /> Reponer
-                        </button>
-                        <button onClick={() => cancelarReporte(r)} className="btn-ghost btn-sm btn-icon text-red-400"><X size={13} /></button>
-                      </>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+              <tr><td colSpan={8} className="text-center py-12" style={{color:'var(--text-3)'}}>Cargando...</td></tr>
+            ) : reportesFilt.length===0 ? (
+              <tr><td colSpan={8} className="text-center py-12" style={{color:'var(--text-3)'}}>
+                {filtroEst||busqueda ? 'Sin resultados' : '✅ Sin reportes registrados'}
+              </td></tr>
+            ) : reportesFilt.map(r=>{
+              const cl  = r.clientes as any
+              const venta = r.ventas  as any
+              return (
+                <tr key={r.id}>
+                  <td>
+                    <p className="font-semibold text-sm">{cl?.nombre}</p>
+                    {cl?.whatsapp&&<p className="text-xs" style={{color:'var(--text-3)'}}>{cl.whatsapp}</p>}
+                  </td>
+                  <td>
+                    <span className="badge bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 text-xs">{r.tipo}</span>
+                  </td>
+                  <td className="text-xs font-mono" style={{color:'var(--text-2)'}}>{(r.cuentas as any)?.correo||'—'}</td>
+                  <td className="text-xs max-w-32 truncate" style={{color:'var(--text-2)'}}>{r.descripcion||'—'}</td>
+                  <td className="text-center font-semibold">{r.dias_pausados||0}</td>
+                  <td className="text-xs" style={{color:'var(--text-3)'}}>{formatFecha(r.fecha_reporte||r.created_at,true)}</td>
+                  <td>
+                    <span className={`badge text-xs ${COLOR_EST[r.estado]||''}`}>{r.estado}</span>
+                    {r.fecha_solucion&&<p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>Sol: {formatFecha(r.fecha_solucion)}</p>}
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-1">
+                      <button className="btn-ghost p-1.5" onClick={()=>setVerD(r)} title="Ver"><Eye size={13}/></button>
+                      {r.estado==='pendiente'&&(
+                        <>
+                          <button className="btn-ghost p-1.5 text-emerald-600" onClick={()=>cambiarEstado(r.id,'solucionado')} title="Solucionar"><CheckCircle size={13}/></button>
+                          <button className="btn-ghost p-1.5 text-gray-500" onClick={()=>cambiarEstado(r.id,'cancelado')} title="Cancelar"><X size={13}/></button>
+                        </>
+                      )}
+                      <button className="btn-ghost p-1.5 text-red-500" onClick={()=>eliminarReporte(r.id)} title="Eliminar"><Trash2 size={13}/></button>
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* Modal Nuevo Reporte */}
-      {showModal && (
-        <div className="modal-overlay" onClick={() => setShowModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+      {/* MODAL NUEVO REPORTE */}
+      {modalOpen && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setMOpen(false)}>
+          <div className="modal-content animate-slide-up max-w-lg">
             <div className="modal-header">
-              <h2 className="font-semibold text-slate-200">Nuevo Reporte</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <h2 className="text-lg font-bold" style={{color:'var(--text)'}}><Flag size={16} className="inline mr-2" style={{color:'var(--brand)'}}/>Nuevo reporte</h2>
+              <button className="btn-ghost p-1.5" onClick={()=>setMOpen(false)}><X size={18}/></button>
             </div>
             <div className="modal-body">
-              <div>
-                <label className="label">Venta afectada *</label>
-                <select className="select" value={form.venta_id} onChange={e => setForm(f => ({ ...f, venta_id: e.target.value }))}>
-                  <option value="">Seleccionar venta activa...</option>
-                  {ventas.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.clientes?.nombre} — {v.plataformas?.icono} {v.plataformas?.nombre} ({v.perfiles?.nombre_perfil})
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="label">Tipo de problema *</label>
-                <select className="select" value={form.tipo} onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}>
-                  {TIPOS_REPORTE.map(t => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="label">Fecha de la falla</label>
-                <input className="input" type="date" value={form.fecha_falla} onChange={e => setForm(f => ({ ...f, fecha_falla: e.target.value }))} />
-              </div>
-              <div>
-                <label className="label">Descripción</label>
-                <textarea className="input resize-none" rows={3} placeholder="Describe el problema..." value={form.descripcion} onChange={e => setForm(f => ({ ...f, descripcion: e.target.value }))} />
-              </div>
-              <div className="alert alert-warning">
-                <AlertTriangle size={16} />
-                <span>Al crear el reporte, la venta quedará <strong>en garantía</strong> y el tiempo se congelará hasta la reposición.</span>
+              <div className="space-y-4">
+                <div>
+                  <label className="label">Venta afectada *</label>
+                  <select className="select" value={fr.venta_id} onChange={e=>setFr(f=>({...f,venta_id:e.target.value}))}>
+                    <option value="">Seleccionar venta activa...</option>
+                    {ventas.map(v=>(
+                      <option key={v.id} value={v.id}>
+                        {(v.clientes as any)?.nombre} — {(v.plataformas as any)?.icono} {(v.plataformas as any)?.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Tipo de problema *</label>
+                  <select className="select" value={fr.tipo} onChange={e=>setFr(f=>({...f,tipo:e.target.value}))}>
+                    {TIPOS_REPORTE.map(t=><option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="label">Descripción del problema</label>
+                  <textarea className="input" rows={3} placeholder="Describe qué ocurrió..." value={fr.descripcion} onChange={e=>setFr(f=>({...f,descripcion:e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="label">Link de evidencia (captura, etc.)</label>
+                  <input className="input" type="url" placeholder="https://..." value={fr.evidencia_url} onChange={e=>setFr(f=>({...f,evidencia_url:e.target.value}))}/>
+                </div>
+                <div>
+                  <label className="label">Días pausados (tiempo sin servicio)</label>
+                  <input className="input" type="number" min={0} value={fr.dias_pausados} onChange={e=>setFr(f=>({...f,dias_pausados:Number(e.target.value)}))}/>
+                  <p className="text-xs mt-1" style={{color:'var(--text-3)'}}>Estos días se descontarán del tiempo consumido del cliente</p>
+                </div>
               </div>
             </div>
             <div className="modal-footer">
-              <button onClick={() => setShowModal(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={crearReporte} disabled={saving} className="btn-primary">{saving ? 'Creando...' : 'Crear Reporte'}</button>
+              <button className="btn-secondary" onClick={()=>setMOpen(false)}>Cancelar</button>
+              <button className="btn-primary" onClick={crearReporte}><CheckCircle size={15}/>Crear reporte</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal Reposición */}
-      {showReposicion && selected && (
-        <div className="modal-overlay" onClick={() => setShowReposicion(false)}>
-          <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
+      {/* MODAL DETALLE REPORTE */}
+      {verDetalle && (
+        <div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setVerD(null)}>
+          <div className="modal-content animate-slide-up max-w-lg">
             <div className="modal-header">
-              <h2 className="font-semibold text-slate-200">Hacer Reposición</h2>
-              <button onClick={() => setShowReposicion(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <h2 className="text-base font-bold" style={{color:'var(--text)'}}>Detalle del reporte</h2>
+              <button className="btn-ghost p-1.5" onClick={()=>setVerD(null)}><X size={18}/></button>
             </div>
-            <div className="modal-body">
-              {/* Info del reporte */}
-              <div className="p-4 rounded-xl bg-yellow-500/10 border border-yellow-500/30 space-y-1">
-                <div className="text-sm font-medium text-yellow-300">Detalles del reporte</div>
-                <div className="text-xs text-yellow-400">Cliente: <strong>{selected.clientes?.nombre}</strong></div>
-                <div className="text-xs text-yellow-400">Cuenta anterior: <strong className="font-mono">{selected.cuentas?.correo}</strong></div>
-                <div className="text-xs text-yellow-400">Días restantes: <strong>{selected.dias_restantes_al_fallo} días</strong></div>
-                <div className="text-xs text-yellow-400 mt-2 font-medium">
-                  ⚠️ La nueva cuenta tendrá exactamente {selected.dias_restantes_al_fallo} días (NO 30 nuevos)
+            <div className="p-6 space-y-4">
+              {[
+                ['Cliente',   (verDetalle.clientes as any)?.nombre],
+                ['Tipo',      verDetalle.tipo],
+                ['Cuenta',    (verDetalle.cuentas as any)?.correo],
+                ['Descripción',verDetalle.descripcion||'—'],
+                ['Días pausados',verDetalle.dias_pausados||0],
+                ['Fecha reporte',formatFecha(verDetalle.fecha_reporte||verDetalle.created_at,true)],
+                ['Fecha solución',verDetalle.fecha_solucion?formatFecha(verDetalle.fecha_solucion,true):'Pendiente'],
+                ['Estado',    verDetalle.estado],
+              ].map(([l,v])=>(
+                <div key={l as string} className="flex gap-3">
+                  <p className="w-32 text-xs font-bold uppercase tracking-wider flex-shrink-0" style={{color:'var(--text-3)'}}>{l}</p>
+                  <p className="text-sm" style={{color:'var(--text)'}}>{String(v)}</p>
                 </div>
-              </div>
-
-              {/* Nueva cuenta */}
-              <div>
-                <label className="label">Nueva cuenta *</label>
-                {cuentasDisp.length === 0 ? (
-                  <div className="alert alert-danger"><AlertTriangle size={16} /><span>No hay cuentas disponibles de la misma plataforma</span></div>
-                ) : (
-                  <select className="select" value={reposForm.cuenta_nueva_id} onChange={async e => {
-                    setReposForm(f => ({ ...f, cuenta_nueva_id: e.target.value, perfil_nuevo_id: '' }))
-                    if (e.target.value) {
-                      const { data } = await supabase.from('perfiles').select('*').eq('cuenta_id', e.target.value).eq('estado', 'libre').order('numero_perfil')
-                      setPerfilesDisp(data || [])
-                    }
-                  }}>
-                    <option value="">Seleccionar cuenta...</option>
-                    {cuentasDisp.map(c => <option key={c.id} value={c.id}>{c.correo} — {c.perfiles_disponibles} libres</option>)}
-                  </select>
-                )}
-              </div>
-
-              {/* Nuevo perfil */}
-              {reposForm.cuenta_nueva_id && (
-                <div>
-                  <label className="label">Nuevo perfil *</label>
-                  {perfilesDisp.length === 0 ? (
-                    <div className="alert alert-danger"><AlertTriangle size={16} /><span>No hay perfiles libres</span></div>
-                  ) : (
-                    <select className="select" value={reposForm.perfil_nuevo_id} onChange={e => setReposForm(f => ({ ...f, perfil_nuevo_id: e.target.value }))}>
-                      <option value="">Seleccionar perfil...</option>
-                      {perfilesDisp.map(p => <option key={p.id} value={p.id}>{p.nombre_perfil || `Perfil ${p.numero_perfil}`}</option>)}
-                    </select>
-                  )}
+              ))}
+              {verDetalle.evidencia_url&&(
+                <div className="flex gap-3">
+                  <p className="w-32 text-xs font-bold uppercase tracking-wider flex-shrink-0" style={{color:'var(--text-3)'}}>Evidencia</p>
+                  <a href={verDetalle.evidencia_url} target="_blank" rel="noreferrer" className="text-sm underline" style={{color:'var(--accent)'}}>Ver evidencia →</a>
                 </div>
               )}
-
-              {/* Nombre perfil */}
-              <div>
-                <label className="label">Nombre del nuevo perfil</label>
-                <input className="input" placeholder="Ej: JUAN, 001..." value={reposForm.nombre_perfil_nuevo} onChange={e => setReposForm(f => ({ ...f, nombre_perfil_nuevo: e.target.value }))} />
-              </div>
-
-              <div>
-                <label className="label">Notas</label>
-                <textarea className="input resize-none" rows={2} value={reposForm.notas} onChange={e => setReposForm(f => ({ ...f, notas: e.target.value }))} />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button onClick={() => setShowReposicion(false)} className="btn-secondary">Cancelar</button>
-              <button onClick={ejecutarReposicion} disabled={saving} className="btn-success">
-                {saving ? 'Procesando...' : '✓ Ejecutar Reposición'}
-              </button>
             </div>
           </div>
         </div>
