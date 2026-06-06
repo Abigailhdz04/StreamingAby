@@ -57,8 +57,13 @@ export default function CobrosPage() {
   const totalCobrado   = ventasActivas.filter(v=>v.estado_pago==='pagado').reduce((s:number,v:any)=>s+(v.precio_venta||0),0)
   const totalPendiente = ventasActivas.filter(v=>v.estado_pago==='pendiente').reduce((s:number,v:any)=>s+(v.precio_venta||0),0)
   const totalSinCobrar = ventasActivas.filter(v=>v.estado_pago==='sin_cobrar').reduce((s:number,v:any)=>s+(v.precio_venta||0),0)
-  const clientesPend   = [...new Set(ventasActivas.filter(v=>v.estado_pago!=='pagado').map((v:any)=>v.cliente_id))].length
-
+ const clientesPend = Array.from(
+  new Set(
+    ventasActivas
+      .filter(v => v.estado_pago !== 'pagado')
+      .map((v:any) => v.cliente_id)
+  )
+).length
   const COLOR_PAGO: Record<string,string> = {
     pagado:'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300',
     pendiente:'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300',
