@@ -121,7 +121,7 @@ export default function ClientesPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
           <input
             className="input pl-9"
             placeholder="Buscar cliente..."
@@ -149,34 +149,34 @@ export default function ClientesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={5} className="text-center py-12 text-slate-500">Cargando...</td></tr>
+              <tr><td colSpan={5} className="text-center py-12 text-[var(--text-3)]">Cargando...</td></tr>
             ) : clientes.length === 0 ? (
-              <tr><td colSpan={5} className="text-center py-12 text-slate-500">No hay clientes</td></tr>
+              <tr><td colSpan={5} className="text-center py-12 text-[var(--text-3)]">No hay clientes</td></tr>
             ) : clientes.map(c => (
               <tr key={c.id}>
                 <td>
-                  <div className="font-medium text-slate-200">{c.nombre}</div>
-                  {c.correo && <div className="text-xs text-slate-500">{c.correo}</div>}
+                  <div className="font-medium text-[var(--text)]">{c.nombre}</div>
+                  {c.correo && <div className="text-xs text-[var(--text-3)]">{c.correo}</div>}
                 </td>
                 <td>
                   <div className="flex items-center gap-2">
                     {c.telefono && (
-                      <a href={`tel:${c.telefono}`} className="text-slate-400 hover:text-sky-400">
+                      <a href={`tel:${c.telefono}`} className="text-[var(--text-3)] hover:text-sky-400">
                         <Phone size={14} />
                       </a>
                     )}
                     {c.whatsapp && (
-                      <a href={`https://wa.me/${c.whatsapp}`} target="_blank" rel="noopener" className="text-slate-400 hover:text-emerald-400">
+                      <a href={`https://wa.me/${c.whatsapp}`} target="_blank" rel="noopener" className="text-[var(--text-3)] hover:text-emerald-400">
                         <MessageSquare size={14} />
                       </a>
                     )}
-                    <span className="text-xs text-slate-500">{c.telefono || c.whatsapp || '—'}</span>
+                    <span className="text-xs text-[var(--text-3)]">{c.telefono || c.whatsapp || '—'}</span>
                   </div>
                 </td>
                 <td>
                   <span className={cn('badge', getEstadoBadgeColor(c.estado))}>{c.estado}</span>
                 </td>
-                <td className="text-slate-400 text-xs">{formatDate(c.fecha_registro)}</td>
+                <td className="text-[var(--text-3)] text-xs">{formatDate(c.fecha_registro)}</td>
                 <td>
                   <div className="flex items-center gap-1">
                     <button onClick={() => openDetail(c)} className="btn-ghost btn-sm btn-icon" title="Ver detalle">
@@ -201,8 +201,8 @@ export default function ClientesPage() {
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="font-semibold text-slate-200">{editing ? 'Editar Cliente' : 'Nuevo Cliente'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <h2 className="font-semibold text-[var(--text)]">{editing ? 'Editar Cliente' : 'Nuevo Cliente'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div>
@@ -250,45 +250,45 @@ export default function ClientesPage() {
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h2 className="font-semibold text-slate-200">{selected.nombre}</h2>
+                <h2 className="font-semibold text-[var(--text)]">{selected.nombre}</h2>
                 <span className={cn('badge mt-1', getEstadoBadgeColor(selected.estado))}>{selected.estado}</span>
               </div>
-              <button onClick={() => setShowDetail(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <button onClick={() => setShowDetail(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
             </div>
             <div className="modal-body">
               {/* Info */}
               <div className="grid grid-cols-2 gap-3">
                 {selected.telefono && (
                   <div className="p-3 rounded-lg bg-[#0f172a] border border-[#1e2d42]">
-                    <div className="text-xs text-slate-500">Teléfono</div>
-                    <div className="text-sm text-slate-300 mt-0.5">{selected.telefono}</div>
+                    <div className="text-xs text-[var(--text-3)]">Teléfono</div>
+                    <div className="text-sm text-[var(--text-2)] mt-0.5">{selected.telefono}</div>
                   </div>
                 )}
                 {selected.whatsapp && (
                   <div className="p-3 rounded-lg bg-[#0f172a] border border-[#1e2d42]">
-                    <div className="text-xs text-slate-500">WhatsApp</div>
+                    <div className="text-xs text-[var(--text-3)]">WhatsApp</div>
                     <a href={`https://wa.me/${selected.whatsapp}`} target="_blank" className="text-sm text-emerald-400 mt-0.5 block hover:underline">{selected.whatsapp}</a>
                   </div>
                 )}
                 {selected.correo && (
                   <div className="p-3 rounded-lg bg-[#0f172a] border border-[#1e2d42] col-span-2">
-                    <div className="text-xs text-slate-500">Correo</div>
-                    <div className="text-sm text-slate-300 mt-0.5">{selected.correo}</div>
+                    <div className="text-xs text-[var(--text-3)]">Correo</div>
+                    <div className="text-sm text-[var(--text-2)] mt-0.5">{selected.correo}</div>
                   </div>
                 )}
               </div>
               {selected.notas && (
                 <div className="p-3 rounded-lg bg-[#0f172a] border border-[#1e2d42]">
-                  <div className="text-xs text-slate-500 mb-1">Notas</div>
-                  <div className="text-sm text-slate-300">{selected.notas}</div>
+                  <div className="text-xs text-[var(--text-3)] mb-1">Notas</div>
+                  <div className="text-sm text-[var(--text-2)]">{selected.notas}</div>
                 </div>
               )}
               {/* Historial ventas */}
               <div>
-                <h3 className="font-medium text-slate-300 mb-3">Historial de Ventas ({clienteVentas.length})</h3>
+                <h3 className="font-medium text-[var(--text-2)] mb-3">Historial de Ventas ({clienteVentas.length})</h3>
                 <div className="space-y-2">
                   {clienteVentas.length === 0 ? (
-                    <p className="text-sm text-slate-500 text-center py-4">Sin ventas registradas</p>
+                    <p className="text-sm text-[var(--text-3)] text-center py-4">Sin ventas registradas</p>
                   ) : clienteVentas.map(v => {
                     const dias = diasRestantes(v.fecha_vencimiento)
                     const tipo = getAlertaVencimiento(dias)
@@ -296,8 +296,8 @@ export default function ClientesPage() {
                       <div key={v.id} className="flex items-center gap-3 p-3 rounded-lg bg-[#0f172a] border border-[#1e2d42]">
                         <span className="text-xl">{v.plataformas?.icono}</span>
                         <div className="flex-1">
-                          <div className="text-sm font-medium text-slate-300">{v.plataformas?.nombre}</div>
-                          <div className="text-xs text-slate-500">{v.nombre_perfil_asignado || v.perfiles?.nombre_perfil} · Vence: {formatDate(v.fecha_vencimiento)}</div>
+                          <div className="text-sm font-medium text-[var(--text-2)]">{v.plataformas?.nombre}</div>
+                          <div className="text-xs text-[var(--text-3)]">{v.nombre_perfil_asignado || v.perfiles?.nombre_perfil} · Vence: {formatDate(v.fecha_vencimiento)}</div>
                         </div>
                         <div className="text-right">
                           <div className={cn('text-sm font-bold', getAlertaColor(tipo))}>

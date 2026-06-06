@@ -90,11 +90,11 @@ export default function PerfilesPage() {
           { label: 'Libres', count: stats.libre, color: 'text-emerald-400' },
           { label: 'Ocupados', count: stats.ocupado, color: 'text-blue-400' },
           { label: 'Reportados', count: stats.reportado, color: 'text-red-400' },
-          { label: 'Bloqueados', count: stats.bloqueado, color: 'text-slate-400' },
+          { label: 'Bloqueados', count: stats.bloqueado, color: 'text-[var(--text-3)]' },
         ].map(s => (
           <div key={s.label} className="card text-center">
             <div className={cn('text-2xl font-bold', s.color)}>{s.count}</div>
-            <div className="text-xs text-slate-500 mt-0.5">{s.label}</div>
+            <div className="text-xs text-[var(--text-3)] mt-0.5">{s.label}</div>
           </div>
         ))}
       </div>
@@ -102,7 +102,7 @@ export default function PerfilesPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
           <input className="input pl-9" placeholder="Buscar perfil, cliente o cuenta..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="select w-40" value={filtroEstado} onChange={e => setFiltroEstado(e.target.value)}>
@@ -134,29 +134,31 @@ export default function PerfilesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">Cargando...</td></tr>
             ) : perfiles.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">No hay perfiles</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">No hay perfiles</td></tr>
             ) : perfiles.map(p => (
               <tr key={p.id}>
-                <td className="text-slate-500 text-xs">{p.numero_perfil}</td>
-                <td className="font-medium text-slate-200">{p.nombre_perfil || `Perfil ${p.numero_perfil}`}</td>
+                <td className="text-[var(--text-3)] text-xs">{p.numero_perfil}</td>
+                <td className="font-medium text-[var(--text)]">{p.nombre_perfil || `Perfil ${p.numero_perfil}`}</td>
                 <td>
                   <div className="flex items-center gap-2">
                     <span>{p.cuentas?.plataformas?.icono}</span>
-                    <span className="text-xs text-slate-400">{p.cuentas?.plataformas?.nombre}</span>
+                    <span className="text-xs text-[var(--text-3)]">{p.cuentas?.plataformas?.nombre}</span>
                   </div>
                 </td>
-                <td className="font-mono text-xs text-slate-500">{p.cuentas?.correo ? p.cuentas.correo.substring(0, 25) + '...' : '—'}</td>
+                <td className="font-mono text-xs text-[var(--text-3)]">{p.cuentas?.correo ? p.cuentas.correo.substring(0, 25) + '...' : '—'}</td>
                 <td>
                   {p.clientes ? (
                     <div>
-                      <div className="text-sm text-slate-300">{p.clientes.nombre}</div>
+                      <div className="text-sm text-[var(--text-2)]">{p.clientes.nombre}</div>
                       {p.clientes.whatsapp && (
                         <a href={`https://wa.me/${p.clientes.whatsapp}`} target="_blank" className="text-xs text-emerald-400 hover:underline">WA</a>
                       )}
                     </div>
-                  ) : <span className="text-slate-600">—</span>}
+                  ) : (
+                    <span className="text-[var(--text-3)]">—</span>
+                  )}
                 </td>
                 <td>
                   <span className={cn('badge text-[10px]', getEstadoBadgeColor(p.estado))}>{p.estado}</span>
@@ -184,8 +186,8 @@ export default function PerfilesPage() {
         <div className="modal-overlay" onClick={() => setShowEdit(false)}>
           <div className="modal max-w-sm" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
-              <h2 className="font-semibold text-slate-200">Renombrar Perfil</h2>
-              <button onClick={() => setShowEdit(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <h2 className="font-semibold text-[var(--text)]">Renombrar Perfil</h2>
+              <button onClick={() => setShowEdit(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div>
@@ -198,7 +200,7 @@ export default function PerfilesPage() {
                   autoFocus
                 />
               </div>
-              <p className="text-xs text-slate-500">Este es el nombre que aparece en la plataforma de streaming para identificar el perfil.</p>
+              <p className="text-xs text-[var(--text-3)]">Este es el nombre que aparece en la plataforma de streaming para identificar el perfil.</p>
             </div>
             <div className="modal-footer">
               <button onClick={() => setShowEdit(false)} className="btn-secondary">Cancelar</button>

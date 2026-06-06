@@ -34,7 +34,7 @@ export default function ReposicionesPage() {
       </div>
 
       <div className="relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
         <input className="input pl-9" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
@@ -53,18 +53,18 @@ export default function ReposicionesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">Cargando...</td></tr>
             ) : reposiciones.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">No hay reposiciones</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">No hay reposiciones</td></tr>
             ) : reposiciones.map(r => (
               <tr key={r.id}>
-                <td className="font-medium text-slate-200">{r.clientes?.nombre || '—'}</td>
+                <td className="font-medium text-[var(--text)]">{r.clientes?.nombre || '—'}</td>
                 <td className="font-mono text-xs text-red-400">{r.cuenta_anterior?.correo || '—'}</td>
                 <td className="font-mono text-xs text-emerald-400">{r.cuenta_nueva?.correo || '—'}</td>
                 <td className="text-yellow-400 font-bold">{r.dias_restantes} días</td>
-                <td className="text-slate-400">{r.dias_pausados} días</td>
+                <td className="text-[var(--text-3)]">{r.dias_pausados} días</td>
                 <td className="text-sky-400">{formatDate(r.nueva_fecha_vencimiento)}</td>
-                <td className="text-xs text-slate-500">{formatDate(r.fecha_reposicion)}</td>
+                <td className="text-xs text-[var(--text-3)]">{formatDate(r.fecha_reposicion)}</td>
               </tr>
             ))}
           </tbody>

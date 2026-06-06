@@ -11,9 +11,9 @@ const TIPO_ICONS: Record<string, any> = {
   reporte_creado: { icon: AlertTriangle, color: 'text-yellow-400', bg: 'bg-yellow-500/10' },
   reposicion_realizada: { icon: RefreshCw, color: 'text-blue-400', bg: 'bg-blue-500/10' },
   cliente_creado: { icon: Users, color: 'text-sky-400', bg: 'bg-sky-500/10' },
-  cliente_editado: { icon: Users, color: 'text-slate-400', bg: 'bg-slate-500/10' },
+  cliente_editado: { icon: Users, color: 'text-[var(--text-3)]', bg: 'bg-slate-500/10' },
   cuenta_creada: { icon: Package, color: 'text-purple-400', bg: 'bg-purple-500/10' },
-  cuenta_editada: { icon: Package, color: 'text-slate-400', bg: 'bg-slate-500/10' },
+  cuenta_editada: { icon: Package, color: 'text-[var(--text-3)]', bg: 'bg-slate-500/10' },
   perfil_liberado: { icon: Activity, color: 'text-orange-400', bg: 'bg-orange-500/10' },
 }
 
@@ -60,7 +60,7 @@ export default function MovimientosPage() {
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
-          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
           <input className="input pl-9" placeholder="Buscar en actividad..." value={search} onChange={e => setSearch(e.target.value)} />
         </div>
         <select className="select w-48" value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}>
@@ -72,11 +72,11 @@ export default function MovimientosPage() {
       {/* Timeline */}
       <div className="space-y-2">
         {loading ? (
-          <div className="text-center py-12 text-slate-500">Cargando movimientos...</div>
+          <div className="text-center py-12 text-[var(--text-3)]">Cargando movimientos...</div>
         ) : movimientos.length === 0 ? (
-          <div className="text-center py-12 text-slate-500">No hay movimientos registrados</div>
+          <div className="text-center py-12 text-[var(--text-3)]">No hay movimientos registrados</div>
         ) : movimientos.map(m => {
-          const config = TIPO_ICONS[m.tipo] || { icon: Activity, color: 'text-slate-400', bg: 'bg-slate-500/10' }
+          const config = TIPO_ICONS[m.tipo] || { icon: Activity, color: 'text-[var(--text-3)]', bg: 'bg-slate-500/10' }
           const IconComp = config.icon
           return (
             <div key={m.id} className="flex items-start gap-3 p-3 rounded-xl bg-[#131c2e] border border-[#1e2d42] hover:border-[#243447] transition-colors">
@@ -84,13 +84,13 @@ export default function MovimientosPage() {
                 <IconComp size={15} className={config.color} />
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm text-slate-300">{m.descripcion}</div>
+                <div className="text-sm text-[var(--text-2)]">{m.descripcion}</div>
                 <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[10px] text-slate-600 bg-[#1e2d42] px-2 py-0.5 rounded">{m.tipo.replace(/_/g, ' ')}</span>
-                  {m.clientes?.nombre && <span className="text-[10px] text-slate-500">{m.clientes.nombre}</span>}
+                  <span className="text-[10px] text-[var(--text-3)] bg-[#1e2d42] px-2 py-0.5 rounded">{m.tipo.replace(/_/g, ' ')}</span>
+                  {m.clientes?.nombre && <span className="text-[10px] text-[var(--text-3)]">{m.clientes.nombre}</span>}
                 </div>
               </div>
-              <div className="text-xs text-slate-600 whitespace-nowrap flex-shrink-0">{formatDateTime(m.created_at)}</div>
+              <div className="text-xs text-[var(--text-3)] whitespace-nowrap flex-shrink-0">{formatDateTime(m.created_at)}</div>
             </div>
           )
         })}
@@ -101,7 +101,7 @@ export default function MovimientosPage() {
         <button onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0} className="btn-secondary btn-sm">
           ← Anterior
         </button>
-        <span className="text-sm text-slate-400">Página {page + 1}</span>
+        <span className="text-sm text-[var(--text-3)]">Página {page + 1}</span>
         <button onClick={() => setPage(p => p + 1)} disabled={movimientos.length < PAGE_SIZE} className="btn-secondary btn-sm">
           Siguiente →
         </button>

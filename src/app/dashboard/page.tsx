@@ -159,7 +159,7 @@ export default function DashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="flex items-center gap-3 text-slate-400">
+        <div className="flex items-center gap-3 text-[var(--text-3)]">
           <div className="w-5 h-5 border-2 border-sky-500 border-t-transparent rounded-full animate-spin" />
           <span>Cargando dashboard...</span>
         </div>
@@ -171,10 +171,10 @@ export default function DashboardPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-100">
+        <h1 className="text-2xl font-bold text-[var(--text)]">
           Dashboard <span className="gradient-text">StreamingAby</span>
         </h1>
-        <p className="text-slate-400 text-sm mt-1">
+        <p className="text-[var(--text-3)] text-sm mt-1">
           {new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
         </p>
       </div>
@@ -189,10 +189,10 @@ export default function DashboardPage() {
                 <div className={cn('stat-icon w-10 h-10 rounded-lg', c.bg)}>
                   <card.icon size={18} className={c.icon} />
                 </div>
-                <ArrowUpRight size={14} className="text-slate-600 group-hover:text-slate-400 transition-colors" />
+                <ArrowUpRight size={14} className="text-[var(--text-3)] group-hover:text-[var(--text-3)] transition-colors" />
               </div>
               <div className={cn('text-xl font-bold', c.text)}>{card.value}</div>
-              <div className="text-xs text-slate-500 mt-0.5">{card.label}</div>
+              <div className="text-xs text-[var(--text-3)] mt-0.5">{card.label}</div>
             </Link>
           )
         })}
@@ -203,8 +203,8 @@ export default function DashboardPage() {
         <div className="lg:col-span-2 card">
           <div className="flex items-center justify-between mb-5">
             <div>
-              <h2 className="font-semibold text-slate-200">Ventas últimos 7 días</h2>
-              <p className="text-xs text-slate-500 mt-0.5">Ingresos y ganancias diarias</p>
+              <h2 className="font-semibold text-[var(--text)]">Ventas últimos 7 días</h2>
+              <p className="text-xs text-[var(--text-3)] mt-0.5">Ingresos y ganancias diarias</p>
             </div>
           </div>
           <ResponsiveContainer width="100%" height={200}>
@@ -236,7 +236,7 @@ export default function DashboardPage() {
         {/* Próximos a vencer */}
         <div className="card">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-semibold text-slate-200 flex items-center gap-2">
+            <h2 className="font-semibold text-[var(--text)] flex items-center gap-2">
               <Bell size={15} className="text-yellow-400" />
               Próximos a vencer
             </h2>
@@ -244,7 +244,7 @@ export default function DashboardPage() {
           </div>
           <div className="space-y-2.5">
             {stats.proximosVencer.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-4">Sin vencimientos próximos</p>
+              <p className="text-sm text-[var(--text-3)] text-center py-4">Sin vencimientos próximos</p>
             ) : (
               stats.proximosVencer.map((v: any) => {
                 const dias = diasRestantes(v.fecha_vencimiento)
@@ -253,8 +253,8 @@ export default function DashboardPage() {
                   <div key={v.id} className="flex items-center gap-3 p-2.5 rounded-lg bg-[#0f172a] border border-[#1e2d42]">
                     <span className="text-lg">{v.plataformas?.icono || '📺'}</span>
                     <div className="flex-1 min-w-0">
-                      <div className="text-xs font-medium text-slate-300 truncate">{v.clientes?.nombre}</div>
-                      <div className="text-[10px] text-slate-500">{v.plataformas?.nombre} · {v.nombre_perfil_asignado || v.perfiles?.nombre_perfil}</div>
+                      <div className="text-xs font-medium text-[var(--text-2)] truncate">{v.clientes?.nombre}</div>
+                      <div className="text-[10px] text-[var(--text-3)]">{v.plataformas?.nombre} · {v.nombre_perfil_asignado || v.perfiles?.nombre_perfil}</div>
                     </div>
                     <div className={cn('text-xs font-bold', getAlertaColor(tipo))}>
                       {dias < 0 ? 'Vencido' : dias === 0 ? 'Hoy' : `${dias}d`}
@@ -270,7 +270,7 @@ export default function DashboardPage() {
       {/* Ventas recientes */}
       <div className="card">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="font-semibold text-slate-200">Ventas Recientes</h2>
+          <h2 className="font-semibold text-[var(--text)]">Ventas Recientes</h2>
           <Link href="/dashboard/ventas" className="text-xs text-sky-400 hover:text-sky-300 flex items-center gap-1">
             Ver todas <ArrowUpRight size={12} />
           </Link>
@@ -289,27 +289,27 @@ export default function DashboardPage() {
             </thead>
             <tbody>
               {stats.ventasRecientes.length === 0 ? (
-                <tr><td colSpan={6} className="text-center text-slate-500 py-8">No hay ventas aún</td></tr>
+                <tr><td colSpan={6} className="text-center text-[var(--text-3)] py-8">No hay ventas aún</td></tr>
               ) : (
                 stats.ventasRecientes.map((v: any) => {
                   const dias = diasRestantes(v.fecha_vencimiento)
                   const tipo = getAlertaVencimiento(dias)
                   return (
                     <tr key={v.id}>
-                      <td className="font-medium text-slate-200">{v.clientes?.nombre || '—'}</td>
+                      <td className="font-medium text-[var(--text)]">{v.clientes?.nombre || '—'}</td>
                       <td>
                         <div className="flex items-center gap-2">
                           <span>{v.plataformas?.icono}</span>
-                          <span className="text-slate-400">{v.plataformas?.nombre}</span>
+                          <span className="text-[var(--text-3)]">{v.plataformas?.nombre}</span>
                         </div>
                       </td>
-                      <td className="text-slate-400">{v.nombre_perfil_asignado || v.perfiles?.nombre_perfil || '—'}</td>
+                      <td className="text-[var(--text-3)]">{v.nombre_perfil_asignado || v.perfiles?.nombre_perfil || '—'}</td>
                       <td className="text-emerald-400 font-medium">{formatCurrency(v.precio_venta)}</td>
                       <td className={cn('font-medium', getAlertaColor(tipo))}>
                         {dias < 0 ? 'Vencido' : dias === 0 ? 'Hoy' : `${dias} días`}
                       </td>
                       <td>
-                        <span className={cn('badge', v.estado === 'activa' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/20 text-slate-400 border-slate-500/30')}>
+                        <span className={cn('badge', v.estado === 'activa' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' : 'bg-slate-500/20 text-[var(--text-3)] border-slate-500/30')}>
                           {v.estado}
                         </span>
                       </td>

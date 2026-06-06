@@ -83,15 +83,14 @@ export default function GamingPage() {
     const tid = toast.loading('Registrando venta...')
     try {
       await supabase.from('ventas_gaming').insert({
-        producto_id:prod.id, cliente_id:fv.cliente_id,
+        gaming_producto_id:prod.id, cliente_id:fv.cliente_id,
         cantidad:Number(fv.cantidad)||1,
         id_juego_cliente:fv.id_juego_cliente||null,
         nombre_juego_cliente:fv.nombre_juego_cliente||null,
         precio_venta:Number(fv.precio_venta),
         costo_real:Number(fv.costo_real)||0,
         metodo_pago:fv.metodo_pago, estado_pago:fv.estado_pago,
-        fecha_entrega:new Date().toISOString(),
-        estado:'completada', notas:fv.notas||null
+        notas:fv.notas||null
       })
       // Descontar stock si aplica
       if (prod.stock_disponible > 0) {

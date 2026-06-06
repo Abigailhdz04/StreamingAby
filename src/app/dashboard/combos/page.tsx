@@ -109,16 +109,25 @@ export default function CombosPage() {
         const platItem = modalVenta.combo_items?.find((ci:any)=>ci.plataforma_id===iv.plataforma_id)
         const dias = platItem?.dias_duracion||30
         const fechaVItem = format(addDays(parseISO(fVenta.fecha_inicio),dias),'yyyy-MM-dd')
-        await supabase.from('ventas').insert({
+        const { data:vdata } = await supabase.from('ventas').insert({
           cliente_id:fVenta.cliente_id, plataforma_id:iv.plataforma_id,
           cuenta_id:iv.cuenta_id, perfil_id:iv.perfil_id,
           nombre_perfil_asignado:iv.nombre_perfil||null,
           fecha_inicio:fVenta.fecha_inicio, fecha_vencimiento:fechaVItem,
-          dias_contratados:dias, dias_consumidos:0,
-          precio_venta:0, costo_real:0, garantia:true,
+          duracion_dias:dias, dias_consumidos:0,
+          precio_venta:0, costo_real:0, garantia_activa:true,
           estado:'activa', estado_pago:'pagado',
           notas:`Parte del combo: ${modalVenta.nombre}`
+        }).select().single()
+
+        // Crear registro en ventas_combo_items
+        await supabase.from('ventas_combo_items').insert({
+          venta_combo_id:(vc as any).id,
+          cuenta_id:iv.cuenta_id,
+          perfil_id:iv.perfil_id,
+          plataforma_id:iv.plataforma_id
         })
+
         await supabase.from('perfiles').update({ estado:'ocupado', nombre_perfil:iv.nombre_perfil||null }).eq('id',iv.perfil_id)
         // Actualizar contadores cuenta
         const cta = (cuentasPlat[iv.plataforma_id]||[]).find((c:any)=>c.id===iv.cuenta_id)

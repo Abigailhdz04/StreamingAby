@@ -124,3 +124,36 @@ export function getPlatformIcon(nombre: string): string {
 export function truncate(str: string, length = 30): string {
   return str.length > length ? str.substring(0, length) + '...' : str
 }
+// ========================================
+// COMPATIBILIDAD CON MÓDULOS V2
+// ========================================
+
+export const formatFecha = (
+  date: string | Date | null,
+  includeTime = false
+) => {
+  return includeTime
+    ? formatDateTime(date)
+    : formatDate(date)
+}
+
+export const formatMoneda = (
+  amount: number | null,
+  currency = 'MXN'
+) => {
+  return formatCurrency(amount, currency)
+}
+
+export const calcularDiasRestantes = (
+  fechaVencimiento: string | null
+) => {
+  return diasRestantes(fechaVencimiento)
+}
+
+export function getBadgeClass(estado: string) {
+  return getEstadoBadgeColor(estado)
+}
+
+export function getColorEstado(estado: string) {
+  return getEstadoBadgeColor(estado)
+}

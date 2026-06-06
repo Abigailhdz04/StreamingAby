@@ -130,7 +130,7 @@ export default function RenovacionesPage() {
       </div>
 
       <div className="relative max-w-sm">
-        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+        <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-3)]" />
         <input className="input pl-9" placeholder="Buscar cliente..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
 
@@ -149,23 +149,23 @@ export default function RenovacionesPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">Cargando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">Cargando...</td></tr>
             ) : ventas.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-12 text-slate-500">No hay ventas</td></tr>
+              <tr><td colSpan={7} className="text-center py-12 text-[var(--text-3)]">No hay ventas</td></tr>
             ) : ventas.map(v => {
               const dias = diasRestantes(v.fecha_vencimiento)
               const tipo = getAlertaVencimiento(dias)
               return (
                 <tr key={v.id}>
                   <td>
-                    <div className="font-medium text-slate-200">{v.clientes?.nombre}</div>
+                    <div className="font-medium text-[var(--text)]">{v.clientes?.nombre}</div>
                     {v.clientes?.whatsapp && <a href={`https://wa.me/${v.clientes.whatsapp}`} target="_blank" className="text-xs text-emerald-400">WA</a>}
                   </td>
                   <td>
                     <span>{v.plataformas?.icono}</span>
-                    <span className="text-xs text-slate-400 ml-1">{v.plataformas?.nombre}</span>
+                    <span className="text-xs text-[var(--text-3)] ml-1">{v.plataformas?.nombre}</span>
                   </td>
-                  <td className="text-slate-400 text-sm">{v.perfiles?.nombre_perfil || '—'}</td>
+                  <td className="text-[var(--text-3)] text-sm">{v.perfiles?.nombre_perfil || '—'}</td>
                   <td className={cn('font-medium', getAlertaColor(tipo))}>{formatDate(v.fecha_vencimiento)}</td>
                   <td className={cn('font-bold', getAlertaColor(tipo))}>
                     {dias < 0 ? 'Vencida' : `${dias}d`}
@@ -190,10 +190,10 @@ export default function RenovacionesPage() {
           <div className="modal modal-lg" onClick={e => e.stopPropagation()}>
             <div className="modal-header">
               <div>
-                <h2 className="font-semibold text-slate-200">Renovar — {selected.clientes?.nombre}</h2>
-                <div className="text-xs text-slate-400 mt-0.5">{selected.plataformas?.icono} {selected.plataformas?.nombre} · {selected.perfiles?.nombre_perfil}</div>
+                <h2 className="font-semibold text-[var(--text)]">Renovar — {selected.clientes?.nombre}</h2>
+                <div className="text-xs text-[var(--text-3)] mt-0.5">{selected.plataformas?.icono} {selected.plataformas?.nombre} · {selected.perfiles?.nombre_perfil}</div>
               </div>
-              <button onClick={() => setShowModal(false)} className="text-slate-400 hover:text-slate-200"><X size={18} /></button>
+              <button onClick={() => setShowModal(false)} className="text-[var(--text-3)] hover:text-[var(--text)]"><X size={18} /></button>
             </div>
             <div className="modal-body">
               <div>

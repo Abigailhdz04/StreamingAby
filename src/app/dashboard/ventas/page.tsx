@@ -107,9 +107,9 @@ export default function VentasPage() {
         cuenta_id:fv.cuenta_id, perfil_id:fv.perfil_id,
         nombre_perfil_asignado:fv.nombre_perfil_asignado||null,
         fecha_inicio:fv.fecha_inicio, fecha_vencimiento:fechaVenc,
-        dias_contratados:diasNum, dias_consumidos:0,
+        duracion_dias:diasNum, dias_consumidos:0,
         precio_venta:Number(fv.precio_venta), costo_real:Number(fv.costo_real)||0,
-        garantia:fv.garantia, estado:'activa',
+        garantia_activa:fv.garantia, estado:'activa',
         estado_pago:fv.estado_pago, metodo_pago:fv.metodo_pago||null,
         notas:fv.notas||null
       }).select().single()
@@ -154,7 +154,7 @@ export default function VentasPage() {
     const hoyDate = new Date()
     const inicio = parseISO(v.fecha_inicio)
     const diasCons = Math.max(0, Math.floor((hoyDate.getTime()-inicio.getTime())/(86400000)))
-    const diasRest = Math.max(0, v.dias_contratados - diasCons)
+    const diasRest = Math.max(0, v.duracion_dias - diasCons)
     const nuevaFecha = format(addDays(hoyDate, diasRest), 'yyyy-MM-dd')
     const tid = toast.loading('Procesando reposición...')
     try {
@@ -171,8 +171,8 @@ export default function VentasPage() {
         nombre_perfil_asignado:v.nombre_perfil_asignado,
         fecha_inicio:hoyDate.toISOString().split('T')[0],
         fecha_vencimiento:nuevaFecha,
-        dias_contratados:diasRest, dias_consumidos:0,
-        precio_venta:0, costo_real:0, garantia:true,
+        duracion_dias:diasRest, dias_consumidos:0,
+        precio_venta:0, costo_real:0, garantia_activa:true,
         estado:'repuesta', estado_pago:'pagado',
         notas:`Reposición desde venta ${v.id}. ${fr.notas||''}`
       }).select().single()
@@ -210,13 +210,14 @@ export default function VentasPage() {
     try {
       await supabase.from('ventas').update({
         fecha_vencimiento:nuevaFecha,
-        dias_contratados:v.dias_contratados+diasE,
+        duracion_dias:v.duracion_dias+diasE,
         estado:'renovada'
       }).eq('id',v.id)
       await supabase.from('renovaciones').insert({
         venta_id:v.id, cliente_id:v.cliente_id,
         cuenta_id:v.cuenta_id, perfil_id:v.perfil_id,
-        dias_extendidos:diasE, fecha_renovacion:new Date().toISOString(),
+        dias_renovados:diasE, fecha_anterior_vencimiento:v.fecha_vencimiento,
+        nueva_fecha_vencimiento:nuevaFecha,
         precio_renovacion:Number(frn.precio_renovacion),
         costo_renovacion:Number(frn.costo_renovacion)||0,
         fecha_nueva_vencimiento:nuevaFecha, notas:frn.notas||null
@@ -542,14 +543,14 @@ export default function VentasPage() {
             <div className="p-6 space-y-4">
               {(()=>{
                 const diasCons = Math.max(0,Math.floor((Date.now()-parseISO(modalRepos.fecha_inicio).getTime())/86400000))
-                const diasRest = Math.max(0, modalRepos.dias_contratados - diasCons)
+                const diasRest = Math.max(0, modalRepos.duracion_dias - diasCons)
                 const nuevaF = format(addDays(new Date(), diasRest),'dd/MM/yyyy')
                 return (
                   <div className="rounded-xl p-4 space-y-2 text-sm" style={{background:'#fefce8',border:'1.5px solid #fbbf24'}}>
                     <p className="font-bold text-amber-800">📊 Cálculo automático de días restantes</p>
                     <div className="grid grid-cols-3 gap-2 mt-2">
-                      {[['Contratados',modalRepos.dias_contratados+'d'],['Consumidos',diasCons+'d'],['Restantes ✅',diasRest+'d']].map(([l,v])=>(
-                        <div key={l} className="bg-white rounded-lg p-2 text-center border border-amber-200">
+                      {[['Contratados',modalRepos.duracion_dias+'d'],['Consumidos',diasCons+'d'],['Restantes ✅',diasRest+'d']].map(([l,v])=>(
+                        <div key={l} className="bg-[var(--bg-card)] rounded-lg p-2 text-center border border-amber-200">
                           <p className="text-lg font-bold text-amber-700">{v}</p>
                           <p className="text-xs text-amber-600">{l}</p>
                         </div>

@@ -30,7 +30,7 @@ export default function ReportesPage() {
     setLoading(true)
     const [{ data:r },{ data:v }] = await Promise.all([
       supabase.from('reportes')
-        .select('*, clientes(nombre,whatsapp), cuentas(correo), ventas(fecha_inicio,fecha_vencimiento,dias_contratados,plataformas(nombre,icono))')
+        .select('*, clientes(nombre,whatsapp), cuentas(correo), ventas(fecha_inicio,fecha_vencimiento,duracion_dias,plataformas(nombre,icono))')
         .order('created_at',{ ascending:false }),
       supabase.from('ventas')
         .select('id, clientes(nombre), plataformas(nombre,icono), cuentas(correo)')

@@ -11,19 +11,23 @@ import {
 } from 'lucide-react'
 
 const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/ventas', icon: ShoppingBag, label: 'Ventas' },
-  { href: '/dashboard/clientes', icon: Users, label: 'Clientes' },
-  { href: '/dashboard/inventario', icon: Package, label: 'Inventario' },
-  { href: '/dashboard/perfiles', icon: Layers, label: 'Perfiles' },
-  { href: '/dashboard/reportes', icon: AlertTriangle, label: 'Reportes' },
-  { href: '/dashboard/reposiciones', icon: RefreshCw, label: 'Reposiciones' },
-  { href: '/dashboard/proveedores', icon: Building2, label: 'Proveedores' },
-  { href: '/dashboard/plataformas', icon: Monitor, label: 'Plataformas' },
-  { href: '/dashboard/movimientos', icon: History, label: 'Movimientos' },
-  { href: '/dashboard/finanzas', icon: TrendingUp, label: 'Finanzas' },
+  { href: '/dashboard', label: 'Dashboard' },
+  { href: '/dashboard/ventas', label: 'Ventas' },
+  { href: '/dashboard/clientes', label: 'Clientes' },
+  { href: '/dashboard/combos', label: 'Combos' },
+  { href: '/dashboard/peliculas', label: 'Películas' },
+  { href: '/dashboard/gaming', label: 'Gaming' },
+  { href: '/dashboard/cobros', label: 'Cobros y Deudas' },
+  { href: '/dashboard/notificaciones', label: 'Notificaciones' },
+  { href: '/dashboard/inventario', label: 'Inventario' },
+  { href: '/dashboard/perfiles', label: 'Perfiles' },
+  { href: '/dashboard/reportes', label: 'Reportes' },
+  { href: '/dashboard/reposiciones', label: 'Reposiciones' },
+  { href: '/dashboard/proveedores', label: 'Proveedores' },
+  { href: '/dashboard/plataformas', label: 'Plataformas' },
+  { href: '/dashboard/movimientos', label: 'Movimientos' },
+  { href: '/dashboard/finanzas', label: 'Finanzas' },
 ]
-
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -64,13 +68,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               SA
             </div>
             <div>
-              <div className="font-bold text-slate-100 text-sm">StreamingAby</div>
-              <div className="text-[10px] text-slate-500">Panel de Gestión</div>
+              <div className="font-bold text-[var(--text)] text-sm">StreamingAby</div>
+              <div className="text-[10px] text-[var(--text-3)]">Panel de Gestión</div>
             </div>
           </div>
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-slate-400 hover:text-slate-200"
+            className="lg:hidden text-[var(--text-3)] hover:text-[var(--text)]"
           >
             <X size={18} />
           </button>
@@ -79,25 +83,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         {/* Nav */}
         <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
           {navItems.map(item => {
-            const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn('sidebar-link', active && 'active')}
-              >
-                <item.icon size={17} />
-                <span>{item.label}</span>
-                {item.href === '/dashboard/reportes' && alerts > 0 && (
-                  <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">
-                    {alerts > 9 ? '9+' : alerts}
-                  </span>
-                )}
-                {active && <ChevronRight size={14} className="ml-auto opacity-50" />}
-              </Link>
-            )
-          })}
+  const active = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href))
+
+  return (
+    <Link
+      key={item.href}
+      href={item.href}
+      onClick={() => setSidebarOpen(false)}
+      className={cn('sidebar-link', active && 'active')}
+    >
+      <span>{item.label}</span>
+
+      {item.href === '/dashboard/reportes' && alerts > 0 && (
+        <span className="ml-auto bg-red-500 text-white text-[10px] rounded-full w-5 h-5 flex items-center justify-center">
+          {alerts > 9 ? '9+' : alerts}
+        </span>
+      )}
+
+      {active && <ChevronRight size={14} className="ml-auto opacity-50" />}
+    </Link>
+  )
+})}
         </nav>
 
         {/* Footer */}
@@ -108,7 +114,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </Link>
           <div className="mt-3 px-3 py-2.5 rounded-lg bg-sky-500/10 border border-sky-500/20">
             <div className="text-xs text-sky-400 font-medium">Sistema activo</div>
-            <div className="text-[10px] text-slate-500 mt-0.5">Todos los módulos OK</div>
+            <div className="text-[10px] text-[var(--text-3)] mt-0.5">Todos los módulos OK</div>
           </div>
         </div>
       </aside>
@@ -119,13 +125,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <header className="h-14 bg-[#0f172a] border-b border-[#1e2d42] flex items-center px-4 gap-4 sticky top-0 z-30">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="lg:hidden text-slate-400 hover:text-slate-200 p-1"
+            className="lg:hidden text-[var(--text-3)] hover:text-[var(--text)] p-1"
           >
             <Menu size={20} />
           </button>
           <div className="flex-1" />
           {/* Alerts bell */}
-          <button className="relative p-2 text-slate-400 hover:text-slate-200 hover:bg-[#1e2d42] rounded-lg transition-colors">
+          <button className="relative p-2 text-[var(--text-3)] hover:text-[var(--text)] hover:bg-[#1e2d42] rounded-lg transition-colors">
             <Bell size={18} />
             {alerts > 0 && (
               <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
@@ -136,8 +142,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               A
             </div>
             <div className="hidden sm:block">
-              <div className="text-xs font-medium text-slate-300">Admin</div>
-              <div className="text-[10px] text-slate-500">Administrador</div>
+              <div className="text-xs font-medium text-[var(--text-2)]">Admin</div>
+              <div className="text-[10px] text-[var(--text-3)]">Administrador</div>
             </div>
           </div>
         </header>
