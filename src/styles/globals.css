@@ -26,10 +26,9 @@
     --border: #f0d9f0;
     --border-2: #e0b8e0;
 
-    /* Texto - Modo claro */
-    --text: #f5e6ff;
-    --text-2: #c8a8e0;
-    --text-3: #7a5a95;
+   --text: #E4007C;
+--text-2: #5b4b73;
+--text-3: #7a5a95;
 
     /* Marca y acentos */
     --brand: #c044a0;
@@ -201,34 +200,48 @@
      INPUTS Y FORMULARIOS
   ────────────────────────────────────────────────────────────── */
 
-  .input {
-    @apply w-full rounded-xl px-3 py-2 text-sm focus:outline-none transition-all duration-150;
-    background: var(--surface);
-    color: var(--text);
-    border: 1.5px solid var(--border);
-  }
+/* ──────────────────────────────────────────────────────────
+   INPUTS Y FORMULARIOS
+────────────────────────────────────────────────────────────── */
 
-  .input:focus {
-    border-color: var(--brand);
-    box-shadow: 0 0 0 3px rgba(192, 68, 160, 0.12);
-  }
+.input,
+.select,
+textarea.input {
+  @apply w-full rounded-xl px-3 py-2 text-sm focus:outline-none transition-all duration-150;
 
-  .input::placeholder {
-    color: var(--text-3);
-  }
+  background: var(--surface);
+  border: 1.5px solid var(--border);
 
-  .label {
-    @apply block text-xs font-bold uppercase tracking-wider mb-1.5;
-    color: var(--text-3);
-  }
+  color: #E4007C !important;
+  font-weight: 600;
+}
 
-  .select {
-    @apply input appearance-none cursor-pointer;
-  }
+.input:focus,
+.select:focus,
+textarea.input:focus {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px rgba(192, 68, 160, 0.12);
+}
 
-  textarea.input {
-    @apply resize-none;
-  }
+.input::placeholder,
+textarea.input::placeholder {
+  color: #b08bcf !important;
+  opacity: 1;
+}
+
+.select option {
+  color: #5a3f7a;
+  background: #ffffff;
+}
+
+.label {
+  @apply block text-xs font-bold uppercase tracking-wider mb-1.5;
+  color: #6b4c8f;
+}
+
+textarea.input {
+  @apply resize-none;
+}
 
   /* ──────────────────────────────────────────────────────────
      BADGES
@@ -259,10 +272,10 @@
   }
 
   .table td {
-    @apply px-4 py-3;
-    color: var(--text-2);
-    border-bottom: 1px solid var(--border);
-  }
+  @apply px-4 py-3;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
 
   .table tbody tr {
     transition: background 0.1s;

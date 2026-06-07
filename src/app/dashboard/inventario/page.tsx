@@ -34,23 +34,40 @@ export default function InventarioPage() {
     fecha_vencimiento:'', costo:'', estado:'disponible', notas:''
   })
 
-  const load = useCallback(async () => {
-    setLoading(true)
-    const [{ data:c },{ data:p },{ data:pr }] = await Promise.all([
-      supabase.from('cuentas')
-        .select('*, plataformas(nombre,icono,color), proveedores(nombre)')
-        .order('created_at',{ ascending:false }),
-      supabase.from('plataformas').select('*').eq('activo',true).order('nombre'),
-      supabase.from('proveedores').select('*').eq('activo',true).order('nombre'),
-    ])
-    setCuentas(c||[])
-    setPlats(p||[])
-    setProvs(pr||[])
-    setLoading(false)
-  }, [])
+const load = useCallback(async () => {
+  setLoading(true)
 
-  useEffect(() => { load() }, [load])
+  const [{ data: c }, { data: p }, { data: pr }] = await Promise.all([
+    supabase
+      .from('cuentas')
+      .select('*, plataformas(nombre,icono,color), proveedores(nombre)')
+      .order('created_at', { ascending: false }),
 
+    supabase
+      .from('plataformas')
+      .select('*')
+      .eq('activa', true)
+      .order('nombre'),
+
+    supabase
+      .from('proveedores')
+      .select('*')
+      .eq('activo', true)
+      .order('nombre'),
+  ])
+
+  console.log('PLATAFORMAS CARGADAS:', p)
+
+  setCuentas(c || [])
+  setPlats(p || [])
+  setProvs(pr || [])
+
+  setLoading(false)
+}, [])
+
+useEffect(() => {
+  load()
+}, [load])
   // ──────────────────────────────────────────────────────────
   // FIX CRÍTICO: Al abrir perfiles recalculamos desde DB
   // ──────────────────────────────────────────────────────────
@@ -590,4 +607,4 @@ export default function InventarioPage() {
       )}
     </div>
   )
-}
+  }

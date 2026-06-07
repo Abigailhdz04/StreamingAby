@@ -16,7 +16,7 @@ export default function PlataformasPage() {
 
   const [fp, setFp] = useState({
     nombre:'', icono:'🎬', color:'#c044a0',
-    max_perfiles:5, precio_referencia:'0', notas:'', activo:true
+    max_perfiles:5,  descripcion:'', activa:true
   })
 
   const load = useCallback(async () => {
@@ -28,33 +28,67 @@ export default function PlataformasPage() {
   useEffect(()=>{ load() },[load])
 
   async function guardar() {
-    if (!fp.nombre.trim()) return toast.error('Nombre requerido')
-    const tid = toast.loading(editando?'Actualizando...':'Guardando...')
-    try {
-      const payload = { nombre:fp.nombre, icono:fp.icono, color:fp.color, max_perfiles:Number(fp.max_perfiles)||5, precio_referencia:Number(fp.precio_referencia)||0, notas:fp.notas||null, activo:fp.activo }
-      if (editando) {
-        await supabase.from('plataformas').update(payload).eq('id',editando.id)
-        toast.success('Actualizada ✅',{ id:tid })
-      } else {
-        await supabase.from('plataformas').insert(payload)
-        toast.success('Plataforma creada ✅',{ id:tid })
-      }
-      setMOpen(false); setEdit(null); reset(); load()
-    } catch(e:any){ toast.error(e.message||'Error',{ id:tid }) }
-  }
+  if (!fp.nombre.trim()) return toast.error('Nombre requerido')
 
+  const tid = toast.loading(editando ? 'Actualizando...' : 'Guardando...')
+
+  try {
+    const payload = {
+      nombre: fp.nombre,
+      icono: fp.icono,
+      color: fp.color,
+      max_perfiles: Number(fp.max_perfiles) || 5,
+      descripcion: fp.descripcion || null,
+      activa: fp.activa
+    }
+
+    console.log('PAYLOAD:', payload)
+
+    if (editando) {
+      const { data, error } = await supabase
+        .from('plataformas')
+        .update(payload)
+        .eq('id', editando.id)
+        .select()
+
+      console.log('UPDATE:', data)
+      console.log('ERROR:', error)
+
+      if (error) throw error
+
+      toast.success('Actualizada ✅', { id: tid })
+    } else {
+      const { error } = await supabase
+        .from('plataformas')
+        .insert(payload)
+
+      if (error) throw error
+
+      toast.success('Plataforma creada ✅', { id: tid })
+    }
+
+    await load()
+    setMOpen(false)
+    setEdit(null)
+    reset()
+
+  } catch (e: any) {
+    console.error(e)
+    toast.error(e.message || 'Error', { id: tid })
+  }
+}
   async function eliminar(id: string) {
     if (!confirm('¿Desactivar esta plataforma?')) return
-    await supabase.from('plataformas').update({ activo:false }).eq('id',id)
+    await supabase.from('plataformas').update({ activa:false }).eq('id',id)
     toast.success('Desactivada'); load()
   }
 
   function abrir(p?: any) {
-    if (p) { setEdit(p); setFp({ nombre:p.nombre, icono:p.icono||'🎬', color:p.color||'#c044a0', max_perfiles:p.max_perfiles, precio_referencia:String(p.precio_referencia||0), notas:p.notas||'', activo:p.activo }) }
+    if (p) { setEdit(p); setFp({ nombre:p.nombre, icono:p.icono||'🎬', color:p.color||'#c044a0', max_perfiles:p.max_perfiles, descripcion:p.descripcion||'', activa:p.activa }) }
     else { reset(); setEdit(null) }
     setMOpen(true)
   }
-  function reset() { setFp({ nombre:'', icono:'🎬', color:'#c044a0', max_perfiles:5, precio_referencia:'0', notas:'', activo:true }) }
+  function reset() { setFp({ nombre:'', icono:'🎬', color:'#c044a0', max_perfiles:5, descripcion:'', activa:true }) }
 
   return (
     <div className="space-y-6">
@@ -63,7 +97,7 @@ export default function PlataformasPage() {
           <h1 className="section-title flex items-center gap-2">
             <Tv className="w-5 h-5" style={{color:'var(--brand)'}}/> Plataformas
           </h1>
-          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>{plataformas.filter(p=>p.activo).length} activas</p>
+          <p className="text-sm mt-0.5" style={{color:'var(--text-3)'}}>{plataformas.filter(p=>p.activa).length} activas</p>
         </div>
         <button className="btn-primary" onClick={()=>abrir()}><Plus size={15}/> Nueva plataforma</button>
       </div>
@@ -73,7 +107,7 @@ export default function PlataformasPage() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-4 stagger-children">
           {plataformas.map(p=>(
-            <div key={p.id} className={`card-hover p-5 text-center space-y-3 ${!p.activo?'opacity-50':''}`}>
+            <div key={p.id} className={`card-hover p-5 text-center space-y-3 ${!p.activa?'opacity-50':''}`}>
               <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl mx-auto shadow-sm"
                 style={{backgroundColor:`${p.color}25`}}>
                 {p.icono}
@@ -135,16 +169,14 @@ export default function PlataformasPage() {
                   <input className="input" type="number" min={1} max={20} value={fp.max_perfiles} onChange={e=>setFp(f=>({...f,max_perfiles:Number(e.target.value)}))}/>
                 </div>
                 <div>
-                  <label className="label">Precio referencia</label>
-                  <input className="input" type="number" step="0.01" value={fp.precio_referencia} onChange={e=>setFp(f=>({...f,precio_referencia:e.target.value}))}/>
                 </div>
               </div>
               <div>
-                <label className="label">Notas</label>
-                <textarea className="input" rows={2} placeholder="Reglas especiales, observaciones..." value={fp.notas} onChange={e=>setFp(f=>({...f,notas:e.target.value}))}/>
+                <label className="label">Descripción</label>
+                <textarea className="input" rows={2} placeholder="Reglas especiales, observaciones..." value={fp.descripcion} onChange={e=>setFp(f=>({...f,descripcion:e.target.value}))}/>
               </div>
               <div className="flex items-center gap-3 p-3 rounded-xl" style={{background:'var(--surface-2)',border:'1px solid var(--border)'}}>
-                <input type="checkbox" id="pact" className="w-4 h-4" checked={fp.activo} onChange={e=>setFp(f=>({...f,activo:e.target.checked}))}/>
+                <input type="checkbox" id="pact" className="w-4 h-4" checked={fp.activa} onChange={e=>setFp(f=>({...f,activa:e.target.checked}))}/>
                 <label htmlFor="pact" className="text-sm cursor-pointer font-semibold" style={{color:'var(--text-2)'}}>Plataforma activa</label>
               </div>
             </div>

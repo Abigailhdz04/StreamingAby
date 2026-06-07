@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase'
 import { formatFecha, formatMoneda, getBadgeClass, getColorEstado, calcularDiasRestantes } from '@/lib/utils'
 import {
   ShoppingCart, Plus, Search, Eye, RefreshCw, X, CheckCircle,
-  AlertTriangle, DollarSign, Clock, Edit2, Copy, MoreHorizontal
+  AlertTriangle, DollarSign, Clock, Edit2, Copy, MoreHorizontal, Users, User
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import clsx from 'clsx'
@@ -43,6 +43,7 @@ export default function VentasPage() {
   const hoy = new Date().toISOString().split('T')[0]
   const [fv, setFv] = useState({
     cliente_id:'', plataforma_id:'', cuenta_id:'', perfil_id:'',
+    tipo_venta: 'perfil' as 'perfil' | 'cuenta_completa',
     nombre_perfil_asignado:'', dias:'30', dias_custom:'',
     fecha_inicio: hoy, precio_venta:'', costo_real:'',
     garantia:true, estado_pago:'pendiente', metodo_pago:'efectivo',
@@ -66,7 +67,7 @@ export default function VentasPage() {
           perfiles(numero_perfil,nombre_perfil)`)
         .order('created_at',{ ascending:false }),
       supabase.from('clientes').select('id,nombre').order('nombre'),
-      supabase.from('plataformas').select('*').eq('activo',true).order('nombre'),
+      supabase.from('plataformas').select('*').eq('activa',true).order('nombre'),
     ])
     setVentas(v||[])
     setClientes(c||[])
@@ -79,10 +80,11 @@ export default function VentasPage() {
     const { data } = await supabase
       .from('cuentas')
       .select('*, perfiles(*)')
-      .eq('plataforma_id',platId)
+      .eq('plataforma_id', platId)
       .in('estado',['disponible','parcial'])
     setCuentasPl(data||[])
   }
+
   async function cargarPerfs(cuentaId: string, destino:'nueva'|'repos'='nueva') {
     const { data } = await supabase
       .from('perfiles').select('*')
@@ -91,60 +93,142 @@ export default function VentasPage() {
     else setPerfsRepos(data||[])
   }
 
+  // Perfiles libres de la cuenta seleccionada (para venta cuenta completa)
+  const perfilesLibresCuenta = fv.cuenta_id
+    ? (cuentasPlat.find(c => c.id === fv.cuenta_id)?.perfiles || []).filter((p: any) => p.estado === 'libre')
+    : []
+
   // ── CREAR VENTA ──────────────────────────────────────────
   async function crearVenta() {
     const diasNum = fv.dias==='custom' ? Number(fv.dias_custom) : Number(fv.dias)
-    if (!fv.cliente_id||!fv.plataforma_id||!fv.cuenta_id||!fv.perfil_id)
-      return toast.error('Completa: cliente, plataforma, cuenta y perfil')
+
+    if (!fv.cliente_id || !fv.plataforma_id || !fv.cuenta_id)
+      return toast.error('Completa: cliente, plataforma y cuenta')
+
+    if (fv.tipo_venta === 'perfil' && !fv.perfil_id)
+      return toast.error('Selecciona el perfil a vender')
+
+    if (fv.tipo_venta === 'cuenta_completa' && perfilesLibresCuenta.length === 0)
+      return toast.error('Esta cuenta no tiene perfiles libres para vender')
+
     if (!fv.precio_venta) return toast.error('Indica el precio de venta')
-    if (diasNum<1) return toast.error('Días debe ser mayor a 0')
+    if (diasNum < 1) return toast.error('Días debe ser mayor a 0')
 
     const fechaVenc = format(addDays(parseISO(fv.fecha_inicio), diasNum), 'yyyy-MM-dd')
     const tid = toast.loading('Creando venta...')
+
     try {
-      const { data:venta, error:ev } = await supabase.from('ventas').insert({
-        cliente_id:fv.cliente_id, plataforma_id:fv.plataforma_id,
-        cuenta_id:fv.cuenta_id, perfil_id:fv.perfil_id,
-        nombre_perfil_asignado:fv.nombre_perfil_asignado||null,
-        fecha_inicio:fv.fecha_inicio, fecha_vencimiento:fechaVenc,
-        duracion_dias:diasNum, dias_consumidos:0,
-        precio_venta:Number(fv.precio_venta), costo_real:Number(fv.costo_real)||0,
-        garantia_activa:fv.garantia, estado:'activa',
-        estado_pago:fv.estado_pago, metodo_pago:fv.metodo_pago||null,
-        notas:fv.notas||null
-      }).select().single()
-      if (ev) throw ev
+      const cl = clientes.find(c => c.id === fv.cliente_id)
+      const pl = plataformas.find(p => p.id === fv.plataforma_id)
+      const cuenta = cuentasPlat.find(c => c.id === fv.cuenta_id)
 
-      // Ocupar perfil
-      await supabase.from('perfiles').update({
-        estado:'ocupado', nombre_perfil:fv.nombre_perfil_asignado||null
-      }).eq('id',fv.perfil_id)
+      if (fv.tipo_venta === 'cuenta_completa') {
+        // ── Venta de cuenta completa: crear una venta por cada perfil libre ──
+        const ventasCreadas: any[] = []
 
-      // Actualizar contadores cuenta
-      const cuenta = cuentasPlat.find(c=>c.id===fv.cuenta_id)
-      if (cuenta) {
-        const ocp = (cuenta.perfiles_ocupados||0)+1
-        const dis = (cuenta.perfiles_disponibles||0)-1
+        for (const perfil of perfilesLibresCuenta) {
+          const { data: venta, error: ev } = await supabase.from('ventas').insert({
+            cliente_id: fv.cliente_id,
+            plataforma_id: fv.plataforma_id,
+            cuenta_id: fv.cuenta_id,
+            perfil_id: perfil.id,
+            nombre_perfil_asignado: perfil.nombre_perfil || null,
+            fecha_inicio: fv.fecha_inicio,
+            fecha_vencimiento: fechaVenc,
+            duracion_dias: diasNum,
+            dias_consumidos: 0,
+            precio_venta: Number(fv.precio_venta),
+            costo_real: Number(fv.costo_real) || 0,
+            garantia_activa: fv.garantia,
+            estado: 'activa',
+            estado_pago: fv.estado_pago,
+            metodo_pago: fv.metodo_pago || null,
+            notas: fv.notas ? `[Cuenta completa] ${fv.notas}` : '[Cuenta completa]'
+          }).select().single()
+
+          if (ev) throw ev
+          ventasCreadas.push(venta)
+
+          // Ocupar cada perfil
+          await supabase.from('perfiles').update({
+            estado: 'ocupado',
+            nombre_perfil: perfil.nombre_perfil || null
+          }).eq('id', perfil.id)
+        }
+
+        // Marcar la cuenta como llena
         await supabase.from('cuentas').update({
-          perfiles_ocupados:ocp, perfiles_disponibles:dis,
-          estado:dis===0?'llena':'parcial'
-        }).eq('id',fv.cuenta_id)
+          perfiles_ocupados: (cuenta?.perfiles_totales || perfilesLibresCuenta.length),
+          perfiles_disponibles: 0,
+          estado: 'llena'
+        }).eq('id', fv.cuenta_id)
+
+        // Movimiento general
+        await supabase.from('movimientos').insert({
+          tipo: 'venta_creada',
+          descripcion: `Venta cuenta completa: ${cl?.nombre} — ${pl?.nombre} (${perfilesLibresCuenta.length} perfiles) ${diasNum}d | ${formatMoneda(Number(fv.precio_venta))}`,
+          entidad_tipo: 'venta',
+          entidad_id: ventasCreadas[0]?.id,
+          cliente_id: fv.cliente_id
+        })
+
+        toast.success(`¡Cuenta completa vendida! ${perfilesLibresCuenta.length} perfiles asignados ✅`, { id: tid })
+
+      } else {
+        // ── Venta de perfil individual ──
+        const { data: venta, error: ev } = await supabase.from('ventas').insert({
+          cliente_id: fv.cliente_id,
+          plataforma_id: fv.plataforma_id,
+          cuenta_id: fv.cuenta_id,
+          perfil_id: fv.perfil_id,
+          nombre_perfil_asignado: fv.nombre_perfil_asignado || null,
+          fecha_inicio: fv.fecha_inicio,
+          fecha_vencimiento: fechaVenc,
+          duracion_dias: diasNum,
+          dias_consumidos: 0,
+          precio_venta: Number(fv.precio_venta),
+          costo_real: Number(fv.costo_real) || 0,
+          garantia_activa: fv.garantia,
+          estado: 'activa',
+          estado_pago: fv.estado_pago,
+          metodo_pago: fv.metodo_pago || null,
+          notas: fv.notas || null
+        }).select().single()
+        if (ev) throw ev
+
+        // Ocupar perfil
+        await supabase.from('perfiles').update({
+          estado: 'ocupado',
+          nombre_perfil: fv.nombre_perfil_asignado || null
+        }).eq('id', fv.perfil_id)
+
+        // Actualizar contadores cuenta
+        if (cuenta) {
+          const ocp = (cuenta.perfiles_ocupados || 0) + 1
+          const dis = (cuenta.perfiles_disponibles || 0) - 1
+          await supabase.from('cuentas').update({
+            perfiles_ocupados: ocp,
+            perfiles_disponibles: dis,
+            estado: dis === 0 ? 'llena' : 'parcial'
+          }).eq('id', fv.cuenta_id)
+        }
+
+        // Movimiento
+        await supabase.from('movimientos').insert({
+          tipo: 'venta_creada',
+          descripcion: `Venta: ${cl?.nombre} — ${pl?.nombre} ${diasNum}d | ${formatMoneda(Number(fv.precio_venta))}`,
+          entidad_tipo: 'venta',
+          entidad_id: venta.id,
+          cliente_id: fv.cliente_id
+        })
+
+        toast.success('¡Venta creada! ✅', { id: tid })
       }
 
-      // Movimiento
-      const cl=clientes.find(c=>c.id===fv.cliente_id)
-      const pl=plataformas.find(p=>p.id===fv.plataforma_id)
-      await supabase.from('movimientos').insert({
-        tipo:'venta_creada',
-        descripcion:`Venta: ${cl?.nombre} — ${pl?.nombre} ${diasNum}d | ${formatMoneda(Number(fv.precio_venta))}`,
-        entidad_tipo:'venta', entidad_id:venta.id, cliente_id:fv.cliente_id
-      })
-
-      toast.success('¡Venta creada! ✅', { id:tid })
       setMNueva(false)
       resetFv()
       load()
-    } catch(e:any) { toast.error(e.message||'Error', { id:tid }) }
+    } catch(e: any) { toast.error(e.message || 'Error', { id: tid }) }
   }
 
   // ── REPOSICIÓN (preserva días restantes) ─────────────────
@@ -254,24 +338,27 @@ export default function VentasPage() {
   }
 
   function resetFv() {
-    setFv({ cliente_id:'',plataforma_id:'',cuenta_id:'',perfil_id:'',
-      nombre_perfil_asignado:'',dias:'30',dias_custom:'',
-      fecha_inicio:hoy,precio_venta:'',costo_real:'',
-      garantia:true,estado_pago:'pendiente',metodo_pago:'efectivo',
-      notas:'',es_venta_pasada:false })
-    setPerfsD([]);setCuentasPl([])
+    setFv({
+      cliente_id:'', plataforma_id:'', cuenta_id:'', perfil_id:'',
+      tipo_venta: 'perfil',
+      nombre_perfil_asignado:'', dias:'30', dias_custom:'',
+      fecha_inicio: hoy, precio_venta:'', costo_real:'',
+      garantia:true, estado_pago:'pendiente', metodo_pago:'efectivo',
+      notas:'', es_venta_pasada:false
+    })
+    setPerfsD([]); setCuentasPl([])
   }
 
-  const ventasFilt = ventas.filter(v=>{
-    const b=busqueda.toLowerCase()
-    const mb=!busqueda||(v.clientes as any)?.nombre?.toLowerCase().includes(b)||(v.plataformas as any)?.nombre?.toLowerCase().includes(b)
-    const me=!filtroEst||v.estado===filtroEst
-    const mp=!filtroPago||v.estado_pago===filtroPago
-    return mb&&me&&mp
+  const ventasFilt = ventas.filter(v => {
+    const b = busqueda.toLowerCase()
+    const mb = !busqueda || (v.clientes as any)?.nombre?.toLowerCase().includes(b) || (v.plataformas as any)?.nombre?.toLowerCase().includes(b)
+    const me = !filtroEst || v.estado === filtroEst
+    const mp = !filtroPago || v.estado_pago === filtroPago
+    return mb && me && mp
   })
 
-  const diasVenta = () => fv.dias==='custom'?Number(fv.dias_custom):Number(fv.dias)
-  const fechaVencCalc = fv.fecha_inicio && diasVenta()>0
+  const diasVenta = () => fv.dias === 'custom' ? Number(fv.dias_custom) : Number(fv.dias)
+  const fechaVencCalc = fv.fecha_inicio && diasVenta() > 0
     ? format(addDays(parseISO(fv.fecha_inicio), diasVenta()), 'dd/MM/yyyy') : '—'
 
   return (
@@ -422,6 +509,57 @@ export default function VentasPage() {
               <button className="btn-ghost p-1.5" onClick={()=>setMNueva(false)}><X size={18}/></button>
             </div>
             <div className="modal-body">
+
+              {/* ── SELECTOR TIPO DE VENTA ── */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setFv(f => ({ ...f, tipo_venta: 'perfil', perfil_id: '' }))}
+                  className={clsx(
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer',
+                    fv.tipo_venta === 'perfil'
+                      ? 'border-[var(--brand)] bg-[var(--brand)]/10'
+                      : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-[var(--brand)]/50'
+                  )}
+                >
+                  <User size={22} className={fv.tipo_venta === 'perfil' ? 'text-[var(--brand)]' : ''} style={fv.tipo_venta !== 'perfil' ? {color:'var(--text-3)'} : {}}/>
+                  <div className="text-center">
+                    <p className={clsx('font-bold text-sm', fv.tipo_venta === 'perfil' ? 'text-[var(--brand)]' : '')} style={fv.tipo_venta !== 'perfil' ? {color:'var(--text-2)'} : {}}>
+                      Venta de Perfil
+                    </p>
+                    <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>1 perfil a la clienta</p>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setFv(f => ({ ...f, tipo_venta: 'cuenta_completa', perfil_id: '' }))}
+                  className={clsx(
+                    'flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all cursor-pointer',
+                    fv.tipo_venta === 'cuenta_completa'
+                      ? 'border-purple-500 bg-purple-500/10'
+                      : 'border-[var(--border)] bg-[var(--surface-2)] hover:border-purple-400/50'
+                  )}
+                >
+                  <Users size={22} className={fv.tipo_venta === 'cuenta_completa' ? 'text-purple-500' : ''} style={fv.tipo_venta !== 'cuenta_completa' ? {color:'var(--text-3)'} : {}}/>
+                  <div className="text-center">
+                    <p className={clsx('font-bold text-sm', fv.tipo_venta === 'cuenta_completa' ? 'text-purple-600' : '')} style={fv.tipo_venta !== 'cuenta_completa' ? {color:'var(--text-2)'} : {}}>
+                      Cuenta Completa
+                    </p>
+                    <p className="text-xs mt-0.5" style={{color:'var(--text-3)'}}>Todos los perfiles libres</p>
+                  </div>
+                </button>
+              </div>
+
+              {/* Info según tipo de venta */}
+              {fv.tipo_venta === 'cuenta_completa' && (
+                <div className="rounded-xl p-3 text-sm" style={{background:'#f5f3ff', border:'1.5px solid #a78bfa'}}>
+                  <p className="font-semibold text-purple-800">
+                    🔒 Se asignarán automáticamente <strong>todos los perfiles libres</strong> de la cuenta seleccionada al cliente.
+                  </p>
+                </div>
+              )}
+
               {/* Opción venta pasada */}
               <div className="flex items-center gap-3 p-3 rounded-xl border" style={{borderColor:'var(--border)',background:'var(--surface-2)'}}>
                 <input type="checkbox" id="vp" checked={fv.es_venta_pasada} onChange={e=>setFv(f=>({...f,es_venta_pasada:e.target.checked}))} className="w-4 h-4"/>
@@ -447,24 +585,52 @@ export default function VentasPage() {
                 </div>
                 <div>
                   <label className="label">Cuenta disponible *</label>
-                  <select className="select" value={fv.cuenta_id} onChange={e=>{ setFv(f=>({...f,cuenta_id:e.target.value,perfil_id:''})); cargarPerfs(e.target.value) }} disabled={!fv.plataforma_id}>
+                  <select className="select" value={fv.cuenta_id} onChange={e=>{
+                    setFv(f=>({...f,cuenta_id:e.target.value,perfil_id:''}))
+                    if (fv.tipo_venta === 'perfil') cargarPerfs(e.target.value)
+                  }} disabled={!fv.plataforma_id}>
                     <option value="">Seleccionar cuenta...</option>
                     {cuentasPlat.map(c=><option key={c.id} value={c.id}>{c.correo} ({c.perfiles_disponibles} libre{c.perfiles_disponibles!==1?'s':''})</option>)}
                   </select>
                   {fv.plataforma_id&&cuentasPlat.length===0&&<p className="text-xs text-red-500 mt-1">Sin cuentas disponibles para esta plataforma</p>}
                 </div>
-                <div>
-                  <label className="label">Perfil a asignar *</label>
-                  <select className="select" value={fv.perfil_id} onChange={e=>setFv(f=>({...f,perfil_id:e.target.value}))} disabled={!fv.cuenta_id}>
-                    <option value="">Seleccionar perfil...</option>
-                    {perfilesDisp.map(p=><option key={p.id} value={p.id}>Perfil {p.numero_perfil} — {p.nombre_perfil||'Sin nombre'}</option>)}
-                  </select>
-                  {fv.cuenta_id&&perfilesDisp.length===0&&<p className="text-xs text-orange-500 mt-1">⚠️ Sin perfiles libres en esta cuenta</p>}
-                </div>
-                <div>
-                  <label className="label">Nombre del perfil que le das al cliente</label>
-                  <input className="input" placeholder="Ej: Rosa, #3, Mamá..." value={fv.nombre_perfil_asignado} onChange={e=>setFv(f=>({...f,nombre_perfil_asignado:e.target.value}))}/>
-                </div>
+
+                {/* Perfil: solo visible si tipo = perfil individual */}
+                {fv.tipo_venta === 'perfil' && (<>
+                  <div>
+                    <label className="label">Perfil a asignar *</label>
+                    <select className="select" value={fv.perfil_id} onChange={e=>setFv(f=>({...f,perfil_id:e.target.value}))} disabled={!fv.cuenta_id}>
+                      <option value="">Seleccionar perfil...</option>
+                      {perfilesDisp.map(p=><option key={p.id} value={p.id}>Perfil {p.numero_perfil} — {p.nombre_perfil||'Sin nombre'}</option>)}
+                    </select>
+                    {fv.cuenta_id&&perfilesDisp.length===0&&<p className="text-xs text-orange-500 mt-1">⚠️ Sin perfiles libres en esta cuenta</p>}
+                  </div>
+                  <div>
+                    <label className="label">Nombre del perfil que le das al cliente</label>
+                    <input className="input" placeholder="Ej: Rosa, #3, Mamá..." value={fv.nombre_perfil_asignado} onChange={e=>setFv(f=>({...f,nombre_perfil_asignado:e.target.value}))}/>
+                  </div>
+                </>)}
+
+                {/* Vista previa perfiles si es cuenta completa */}
+                {fv.tipo_venta === 'cuenta_completa' && fv.cuenta_id && (
+                  <div className="sm:col-span-2 rounded-xl p-3 text-sm space-y-2" style={{background:'#f5f3ff',border:'1.5px solid #a78bfa'}}>
+                    <p className="font-bold text-purple-800">
+                      👥 Perfiles que se asignarán ({perfilesLibresCuenta.length}):
+                    </p>
+                    {perfilesLibresCuenta.length === 0 ? (
+                      <p className="text-red-600 font-semibold">⚠️ No hay perfiles libres en esta cuenta</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {perfilesLibresCuenta.map((p: any) => (
+                          <span key={p.id} className="px-2 py-1 rounded-lg text-xs font-semibold bg-purple-100 text-purple-700 border border-purple-200">
+                            Perfil {p.numero_perfil} {p.nombre_perfil ? `— ${p.nombre_perfil}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Duración */}
                 <div>
                   <label className="label">Duración *</label>
@@ -480,12 +646,16 @@ export default function VentasPage() {
                   <label className="label">Fecha inicio {fv.es_venta_pasada?'(pasada)':''}</label>
                   <input className="input" type="date" value={fv.fecha_inicio} onChange={e=>setFv(f=>({...f,fecha_inicio:e.target.value}))}/>
                 </div>
+
                 {/* Info calculada */}
                 <div className="sm:col-span-2 rounded-xl p-3 text-sm font-medium" style={{background:'var(--surface-2)',border:'1.5px solid var(--border)'}}>
                   📅 Vencimiento calculado: <strong style={{color:'var(--brand)'}}>{fechaVencCalc}</strong>
                 </div>
                 <div>
-                  <label className="label">Precio de venta (MXN) *</label>
+                  <label className="label">
+                    Precio de venta (MXN) *
+                    {fv.tipo_venta === 'cuenta_completa' && <span className="ml-1 text-xs text-purple-600 font-normal">(precio por perfil)</span>}
+                  </label>
                   <input className="input" type="number" step="0.01" placeholder="0.00" value={fv.precio_venta} onChange={e=>setFv(f=>({...f,precio_venta:e.target.value}))}/>
                 </div>
                 <div>
@@ -494,7 +664,12 @@ export default function VentasPage() {
                 </div>
                 {fv.precio_venta&&fv.costo_real&&(
                   <div className="sm:col-span-2 rounded-xl p-3 text-sm" style={{background:'#ecfdf5',border:'1px solid #a7f3d0'}}>
-                    💰 Ganancia: <strong className="text-emerald-700">{formatMoneda(Number(fv.precio_venta)-Number(fv.costo_real))}</strong>
+                    💰 Ganancia: <strong className="text-emerald-700">
+                      {fv.tipo_venta === 'cuenta_completa' && perfilesLibresCuenta.length > 1
+                        ? `${formatMoneda((Number(fv.precio_venta)-Number(fv.costo_real)) * perfilesLibresCuenta.length)} (${perfilesLibresCuenta.length} perfiles × ${formatMoneda(Number(fv.precio_venta)-Number(fv.costo_real))})`
+                        : formatMoneda(Number(fv.precio_venta)-Number(fv.costo_real))
+                      }
+                    </strong>
                   </div>
                 )}
                 <div>
@@ -524,7 +699,9 @@ export default function VentasPage() {
             </div>
             <div className="modal-footer">
               <button className="btn-secondary" onClick={()=>setMNueva(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={crearVenta}><CheckCircle size={15}/>Crear venta</button>
+              <button className="btn-primary" onClick={crearVenta}><CheckCircle size={15}/>
+                {fv.tipo_venta === 'cuenta_completa' ? `Vender cuenta completa (${perfilesLibresCuenta.length} perfiles)` : 'Crear venta'}
+              </button>
             </div>
           </div>
         </div>
