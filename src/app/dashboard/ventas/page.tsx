@@ -242,12 +242,35 @@ export default function VentasPage() {
     const nuevaFecha = format(addDays(hoyDate, diasRest), 'yyyy-MM-dd')
     const tid = toast.loading('Procesando reposición...')
     try {
-      const { data:rpt } = await supabase.from('reportes').insert({
-        venta_id:v.id, cliente_id:v.cliente_id, cuenta_id:v.cuenta_id,
-        tipo:'reposicion_manual',
-        descripcion:`Reposición. Días consumidos:${diasCons}, restantes:${diasRest}`,
-        estado:'solucionado', fecha_solucion:new Date().toISOString(), dias_pausados:0
-      }).select().single()
+      const { data: rpt, error: errorReporte } = await supabase
+  .from('reportes')
+  .insert({
+    venta_id: v.id,
+    cliente_id: v.cliente_id,
+    cuenta_id: v.cuenta_id,
+    perfil_id: v.perfil_id,
+    plataforma_id: v.plataforma_id,
+    proveedor_id: v.proveedor_id || null,
+
+    tipo: 'otro',
+    descripcion: `Reposición. Días consumidos:${diasCons}, restantes:${diasRest}`,
+
+    fecha_reporte: new Date().toISOString(),
+    fecha_falla: new Date().toISOString(),
+
+    dias_consumidos_al_fallo: diasCons,
+    dias_restantes_al_fallo: diasRest,
+
+    estado: 'solucionado',
+    fecha_solucion: new Date().toISOString()
+  })
+  .select()
+  .single()
+
+if (errorReporte) {
+  console.error(errorReporte)
+  throw errorReporte
+}
 
       const { data:vNueva } = await supabase.from('ventas').insert({
         cliente_id:v.cliente_id, plataforma_id:v.plataforma_id,
